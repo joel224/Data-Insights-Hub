@@ -1,29 +1,32 @@
 'use server';
 
 import { generateDataInsights } from '@/ai/flows/generate-data-insights';
-import { fetchClearbitData } from '@/lib/data/clearbit';
-import { fetchOpenbbData } from '@/lib/data/openbb';
-import { fetchPlaidData } from '@/lib/data/plaid';
 import type { DataSource } from '@/lib/types';
+
+const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
+
+async function fetchDataFromPython(dataSource: DataSource) {
+  const response = await fetch(`${PYTHON_BACKEND_URL}/api/data/${dataSource}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    cache: 'no-store', // Ensure fresh data is fetched every time
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to fetch data from ${dataSource}: ${response.status} ${errorText}`);
+  }
+  return response.json();
+}
 
 export async function runPipeline(dataSource: DataSource): Promise<{ data: any; insights?: string; error?: string }> {
   try {
-    let data;
+    const data = await fetchDataFromPython(dataSource);
 
-    switch (dataSource) {
-      case 'plaid':
-        data = await fetchPlaidData();
-        break;
-      case 'clearbit':
-        data = await fetchClearbitData();
-        break;
-      case 'openbb':
-        data = await fetchOpenbbData();
-        break;
-      default:
-        // This case should not be reachable with TypeScript, but it's good practice
-        throw new Error('Invalid data source');
-    }
+    // The data storage in PostgreSQL should be handled by your Python backend
+    // after fetching from the respective APIs.
 
     const insightsResult = await generateDataInsights({
       dataSource,
@@ -33,6 +36,10 @@ export async function runPipeline(dataSource: DataSource): Promise<{ data: any; 
     return { data, insights: insightsResult.insights };
   } catch (e) {
     console.error(`Pipeline failed for ${dataSource}:`, e);
-    return { data: null, error: e instanceof Error ? e.message : 'An unknown error occurred while generating insights.' };
+    const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred.';
+    return { 
+      data: null, 
+      error: `Failed to connect to the Python backend. Please ensure it's running. Details: ${errorMessage}` 
+    };
   }
 }

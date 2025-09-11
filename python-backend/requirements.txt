@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+python-dotenv
+# Add other Python packages you need here, for example:
+# psycopg2-binary  # For PostgreSQL connection
+# requests         # For making HTTP requests to external APIs

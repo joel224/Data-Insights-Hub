@@ -1,3 +1,7 @@
+// This file is no longer used for data fetching.
+// The data is now fetched from the Python backend.
+// See /src/app/actions.ts
+
 import type { OpenBBStockData } from '@/lib/types';
 import { subDays, format } from 'date-fns';
 
