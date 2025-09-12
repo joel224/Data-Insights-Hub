@@ -1,39 +1,36 @@
-# Stage 1: Build the Next.js application
-FROM node:20-slim as build-stage
+# Stage 1: Build the Next.js frontend
+FROM node:20-slim AS build-stage
 WORKDIR /app
-COPY package.json package-lock.json* ./
+COPY package*.json ./
 RUN npm install --legacy-peer-deps
 COPY . .
 RUN npm run build
 
-# Stage 2: Create the final production image
+# Stage 2: Setup the Python environment
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install Node.js
-RUN apt-get update && \
-    apt-get install -y ca-certificates curl gnupg && \
-    mkdir -p /etc/apt/keyrings && \
-    curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
-    apt-get update && \
-    apt-get install -y nodejs && \
-    rm -rf /var/lib/apt/lists/*
+# Copy built frontend from build-stage
+COPY --from=build-stage /app/out ./out
+COPY --from=build-stage /app/node_modules ./node_modules
+COPY --from=build-stage /app/package*.json ./
+COPY --from=build-stage /app/.next ./.next
+COPY --from=build-stage /app/public ./public
+COPY --from=build-stage /app/src/ai ./src/ai
 
 # Install Python dependencies
 COPY python-backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application code
-COPY . .
+# Copy Python backend code
+COPY python-backend/ ./python-backend/
 
-# Copy built Next.js app from the build stage
-COPY --from=build-stage /app/.next ./.next
-COPY --from=build-stage /app/public ./public
+# Copy other necessary files
+COPY Procfile .
+COPY next.config.ts .
 
-# Expose the default Next.js port and the API port
-EXPOSE 3000 8000 3400
+EXPOSE 8080 8000 3400
 
-# Use honcho to run the Procfile
-# honcho is installed via requirements.txt
+# Use honcho to run multiple processes from the Procfile
+RUN pip install honcho
 CMD ["honcho", "start"]

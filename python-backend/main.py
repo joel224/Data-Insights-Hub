@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from starlette.staticfiles import StaticFiles
 
 # --- CORS Middleware Setup ---
 app = FastAPI()
@@ -111,9 +112,8 @@ async def get_insights(request: InsightsRequest):
 
     try:
         response = requests.post(genkit_flow_url, json=payload, headers={"Content-Type": "application/json"})
-        response.raise_for_status()  # Raise an exception for bad status codes
+        response.raise_for_status()
         
-        # The Genkit flow response is nested under 'output'
         flow_result = response.json()
         if "output" in flow_result:
             return flow_result["output"]
@@ -132,4 +132,4 @@ async def get_insights(request: InsightsRequest):
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
 
-# NOTE: The static file serving is removed as Next.js will handle its own serving.
+app.mount("/", StaticFiles(directory="out", html=True), name="static")
