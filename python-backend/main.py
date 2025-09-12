@@ -86,18 +86,3 @@ async def get_latest_data(data_source: str):
 @app.get("/api")
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
-
-# --- Static Files Serving ---
-# Serve the Next.js frontend
-class SPAStaticFiles(StaticFiles):
-    async def get_response(self, path: str, scope):
-        try:
-            return await super().get_response(path, scope)
-        except HTTPException as ex:
-            if ex.status_code == 404:
-                return await super().get_response("index.html", scope)
-            else:
-                raise ex
-
-if os.path.exists("../out"):
-    app.mount("/", SPAStaticFiles(directory="../out", html=True), name="spa")
