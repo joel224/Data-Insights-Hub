@@ -1,35 +1,34 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+# See https://docs.docker.com/engine/reference/builder/#dockerignore-file
 
-# dependencies
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.env
+/python-backend/.env
+pip-wheel-metadata/
+.venv
+
+# Node
 node_modules
-.pnp
-.pnp.js
-
-# testing
-coverage
-
-# next.js
-.next/
-out/
-
-# production
+.next
+npm-debug.log
+yarn-error.log
+dist
 build
+out
 
-# misc
+# General
 .DS_Store
 *.pem
-
-# debug
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# local env files
-.env*.local
-
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+*.key
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*~
+*.swp

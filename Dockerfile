@@ -12,7 +12,6 @@ COPY . .
 # Build the Next.js app
 RUN npm run build
 
-
 # --- Stage 2: Setup the final production image ---
 FROM python:3.11-slim
 WORKDIR /app
@@ -31,15 +30,14 @@ COPY python-backend/ ./python-backend/
 # Copy the Procfile for honcho
 COPY Procfile ./Procfile
 
+# Create an empty public directory to ensure the copy command doesn't fail
+RUN mkdir -p public
+
 # Copy the built Next.js application from the build stage
 COPY --from=build-stage /app/.next ./.next
+COPY --from=build-stage /app/public ./public
 COPY --from=build-stage /app/package.json ./package.json
 COPY --from=build-stage /app/next.config.ts ./next.config.ts
-
-# Create an empty public directory and then copy into it.
-# This prevents the build from failing if the source /app/public doesn't exist.
-RUN mkdir -p ./public
-COPY --from=build-stage --chown=nonroot:nonroot /app/public ./public
 
 # Define the command to run BOTH applications using honcho
 # Honcho will read the Procfile and start the web and api services.
