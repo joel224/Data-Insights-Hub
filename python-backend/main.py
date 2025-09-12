@@ -143,13 +143,14 @@ async def get_latest_data(data_source: str):
             insights_result = cur.fetchone()
             print(f"✅ [DB] Insights result: {'Found' if insights_result else 'Not Found'}")
 
-
-            if not data_result or not insights_result:
+            # If no data and no insights are found, then we have a problem.
+            if not data_result and not insights_result:
                 raise HTTPException(status_code=404, detail=f"No data or insights found for {data_source}. Run the scheduler to populate data.")
 
+            # Build a flexible response.
             response_data = {
-                "data": data_result['data'],
-                "insights": insights_result['insights']
+                "data": data_result['data'] if data_result else None,
+                "insights": insights_result['insights'] if insights_result else None
             }
 
             print(f"📦 [API] Sending response for '{data_source}'.")
@@ -168,3 +169,4 @@ def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
 
 app.mount("/", StaticFiles(directory="out", html=True), name="static")
+
