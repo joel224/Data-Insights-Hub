@@ -1,6 +1,7 @@
 'use client';
 
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, Newspaper, XAxis, YAxis, Tooltip } from 'recharts';
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis, Tooltip } from 'recharts';
+import { Newspaper } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { ChartContainer, ChartTooltipContent, type ChartConfig } from '@/components/ui/chart';
 import type { OpenBBData } from '@/lib/types';
