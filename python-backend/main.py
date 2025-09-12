@@ -2,7 +2,7 @@ import os
 import json
 from datetime import datetime
 import random
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -46,6 +46,14 @@ class InsightsRequest(BaseModel):
     data: str
 
 # --- API Endpoints ---
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    """
+    Handles browser requests for the site favicon.
+    Returns a 204 No Content response to prevent 404/502 errors.
+    """
+    return Response(content=None, status_code=204)
 
 @app.get("/api/get-latest-data/{data_source}")
 async def get_latest_data(data_source: str):
