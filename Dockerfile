@@ -17,8 +17,7 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# --- Install Node.js ---
-# This installs Node.js and npm into our Python image, creating a hybrid image.
+# Install Node.js and npm
 RUN apt-get update && \
     apt-get install -y ca-certificates curl gnupg && \
     mkdir -p /etc/apt/keyrings && \
@@ -26,31 +25,23 @@ RUN apt-get update && \
     echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
     apt-get install -y nodejs && \
-    # Clean up apt caches to keep image size down
     rm -rf /var/lib/apt/lists/*
 
-# Set the PORT environment variable for Railway
-# The `web` process in the Procfile will use this.
-ENV PORT=3000
-
-# --- Install Python Dependencies ---
+# Copy and install Python dependencies
 COPY python-backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# --- Copy Application Code ---
 # Copy the Python backend code
 COPY python-backend/ ./python-backend/
 
 # Copy the Procfile for honcho
 COPY Procfile ./Procfile
 
-# --- Copy Built Frontend and Node Dependencies ---
+# Copy the built Next.js application and its dependencies from the build stage
 COPY --from=build-stage /app/.next ./.next
 COPY --from=build-stage /app/package.json ./package.json
 COPY --from=build-stage /app/next.config.ts ./next.config.ts
-# Copy node_modules, which are required for `npm run start`
 COPY --from=build-stage /app/node_modules ./node_modules
-
 
 # Define the command to run BOTH applications using honcho
 # Honcho will read the Procfile and start the web and api services.
