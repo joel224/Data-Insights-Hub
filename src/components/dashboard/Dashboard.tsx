@@ -13,7 +13,7 @@ import { PlaidDataView } from './PlaidDataView';
 import { ClearbitDataView } from './ClearbitDataView';
 import { OpenbbDataView } from './OpenbbDataView';
 import { InsightsCard } from './InsightsCard';
-import { InsightsSkeleton, PlaidDataSkeleton, ClearbitDataSkeleton, OpenbbDataSkeleton } from './LoadingStates';
+import { InsightsSkeleton, OpenbbDataSkeleton } from './LoadingStates';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
 
