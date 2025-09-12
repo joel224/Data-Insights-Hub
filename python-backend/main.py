@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from fastapi.staticfiles import StaticFiles
 
 # Load environment variables from a .env file
 load_dotenv()
@@ -81,6 +82,9 @@ async def get_latest_data(data_source: str):
             db_conn.close()
 
 
-@app.get("/")
+@app.get("/api")
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
+
+# This must be the last mount
+app.mount("/", StaticFiles(directory="out", html=True), name="static")

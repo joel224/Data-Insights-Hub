@@ -3,10 +3,12 @@
 import { generateDataInsights } from '@/ai/flows/generate-data-insights';
 import type { DataSource } from '@/lib/types';
 
+// In a real deployment, this would point to your Railway URL or other deployed backend.
+// For local dev, it points to the local Python server.
 const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
 
 async function fetchLatestDataFromPython(dataSource: DataSource) {
-  // This endpoint now fetches the latest data stored in the database.
+  // We add /api to the path to match the updated backend route
   const response = await fetch(`${PYTHON_BACKEND_URL}/api/get-latest-data/${dataSource}`, {
     method: 'GET',
     headers: {
