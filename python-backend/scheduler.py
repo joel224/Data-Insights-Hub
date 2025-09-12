@@ -133,7 +133,9 @@ def fetch_and_store_data(source):
     data = {}
     if source == 'openbb':
         data = {"news": fetch_openbb_news()}
-    elif source in ['plaid', 'clearbit']:
+    elif source == 'plaid':
+        data = {"news": fetch_newsapi_news()}
+    elif source == 'clearbit':
         data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
@@ -264,5 +266,7 @@ if __name__ == "__main__":
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
+
+    
 
     
