@@ -194,3 +194,4 @@ async def get_data(data_source: str):
 @app.get("/")
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
+
