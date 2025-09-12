@@ -189,3 +189,6 @@ if os.path.isdir(static_files_dir):
     print(f"🟢 Serving static files from: {static_files_dir}")
 else:
     print(f"🟡 Warning: Static files directory not found at '{static_files_dir}'. The frontend will not be served.")
+
+
+    

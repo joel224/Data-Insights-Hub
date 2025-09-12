@@ -256,18 +256,6 @@ def generate_and_store_insights(source):
 if __name__ == "__main__":
     print("🚀 Starting scheduled data job...")
 
-    # We must create the schema here on every run to be safe.
-    # This is handled by the main app startup now, but kept for standalone runs.
-    conn = get_db_connection()
-    if not conn:
-        print("🔴 Cannot proceed without a database connection. Exiting scheduler.")
-        sys.exit(1)
-    # The schema is created on app startup, but this is a good safety measure
-    # for when the scheduler is run independently.
-    # create_schema(conn)
-    conn.close()
-
-
     data_sources_to_run = ["openbb", "plaid", "clearbit"]
 
     for source in data_sources_to_run:
@@ -305,3 +293,6 @@ def create_schema(connection):
     except Exception as e:
         print(f"🔴 Error creating schema in scheduler: {e}")
         connection.rollback()
+
+
+    
