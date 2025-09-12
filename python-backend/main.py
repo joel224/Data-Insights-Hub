@@ -3,12 +3,12 @@ import os
 import json
 from datetime import datetime
 import random
+import sys
 from fastapi import FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import sys
 import psycopg2
 from psycopg2.extras import RealDictCursor
 
@@ -26,7 +26,6 @@ app.add_middleware(
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     DATABASE_URL = os.getenv("DATABASE_URL")
-    # This print will be visible in your Railway logs.
     print(f"DEBUG: Attempting to connect with DATABASE_URL: {DATABASE_URL}") 
 
     if not DATABASE_URL:
@@ -65,21 +64,11 @@ async def get_latest_data(data_source: str):
     """
     print(f"Received request for latest '{data_source}' data from the database.")
 
-    # --- ADVANCED DEBUGGING ---
-    # This will print all available environment variables to your Railway log.
-    # This is to help confirm if Railway is injecting the variables correctly.
-    print("--- DEBUG: Printing all available environment variables ---")
-    print(json.dumps(dict(os.environ), indent=2))
-    print("--- END DEBUG ---")
-    # --- END ADVANCED DEBUGGING ---
-
     if data_source not in ["plaid", "clearbit", "openbb"]:
         raise HTTPException(status_code=400, detail="Invalid data source")
 
     db_conn = get_db_connection()
     if not db_conn:
-        # Return a 404 instead of a 500 if the database isn't configured.
-        # This points to a configuration issue, not a server crash.
         raise HTTPException(status_code=404, detail="Database connection not configured. Please ensure DATABASE_URL is set in Railway.")
 
     try:
