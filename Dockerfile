@@ -1,36 +1,30 @@
 # Stage 1: Build the Next.js frontend
 FROM node:20-slim AS build-stage
 WORKDIR /app
+
+# Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install --legacy-peer-deps
+
+# Copy the rest of the application
 COPY . .
+
+# Build the Next.js application
 RUN npm run build
 
-# Stage 2: Setup the Python environment
+# Stage 2: Create the final Python image
 FROM python:3.11-slim
 WORKDIR /app
 
-# Copy built frontend from build-stage
+# Copy the built Next.js app from the build stage
 COPY --from=build-stage /app/out ./out
-COPY --from=build-stage /app/node_modules ./node_modules
-COPY --from=build-stage /app/package*.json ./
-COPY --from=build-stage /app/.next ./.next
-COPY --from=build-stage /app/public ./public
-COPY --from=build-stage /app/src/ai ./src/ai
 
-# Install Python dependencies
-COPY python-backend/requirements.txt ./requirements.txt
+# Copy Python backend files
+COPY python-backend/ ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy Python backend code
-COPY python-backend/ ./python-backend/
+# Expose port 8000 for the FastAPI backend
+EXPOSE 8000
 
-# Copy other necessary files
-COPY Procfile .
-COPY next.config.ts .
-
-EXPOSE 8080 8000 3400
-
-# Use honcho to run multiple processes from the Procfile
-RUN pip install honcho
-CMD ["honcho", "start"]
+# Set the command to run the Python backend
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
