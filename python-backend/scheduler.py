@@ -259,27 +259,6 @@ def generate_and_store_insights(source):
     print(f"--- ✅ [AI] Insight generation finished for: {source} ---")
 
 
-if __name__ == "__main__":
-    print("🚀 Starting scheduled data job...")
-
-    # First, ensure the schema exists.
-    db_conn = get_db_connection()
-    if db_conn:
-        create_schema(db_conn)
-        db_conn.close()
-    else:
-        print("🔴 [Scheduler] Database connection failed. Cannot verify schema or run jobs.")
-        sys.exit(1)
-
-
-    data_sources_to_run = ["openbb", "plaid", "clearbit"]
-
-    for source in data_sources_to_run:
-        fetch_and_store_data(source)
-        generate_and_store_insights(source)
-    
-    print("✅ Scheduled data job finished successfully.")
-
 def create_schema(connection):
     """Creates the necessary tables if they don't exist."""
     if not connection:
@@ -311,6 +290,27 @@ def create_schema(connection):
         connection.rollback()
 
 
+if __name__ == "__main__":
+    print("🚀 Starting scheduled data job...")
+
+    # First, ensure the schema exists.
+    db_conn = get_db_connection()
+    if db_conn:
+        create_schema(db_conn)
+        db_conn.close()
+    else:
+        print("🔴 [Scheduler] Database connection failed. Cannot verify schema or run jobs.")
+        sys.exit(1)
+
+
+    data_sources_to_run = ["openbb", "plaid", "clearbit"]
+
+    for source in data_sources_to_run:
+        fetch_and_store_data(source)
+        generate_and_store_insights(source)
+    
+    print("✅ Scheduled data job finished successfully.")
+
     
 
     
@@ -318,3 +318,6 @@ def create_schema(connection):
     
 
 
+
+
+    
