@@ -11,6 +11,7 @@ from pydantic import BaseModel
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from starlette.staticfiles import StaticFiles
+import google.generativeai as genai
 
 # --- CORS Middleware Setup ---
 app = FastAPI()
@@ -26,7 +27,7 @@ app.add_middleware(
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     DATABASE_URL = os.getenv("DATABASE_URL")
-    print(f"DEBUG: Attempting to connect with DATABASE_URL: {DATABASE_URL}") 
+    print(f"DEBUG: Attempting to connect with DATABASE_URL: {DATABASE_URL}")
 
     if not DATABASE_URL:
         print("🔴 DATABASE_URL is not set. Please check your environment variables in Railway.")
@@ -40,6 +41,41 @@ def get_db_connection():
     except Exception as e:
         print(f"🔴 An unexpected error occurred during database connection: {e}")
         return None
+
+# --- Gemini AI Setup ---
+def generate_insights_from_gemini(data_source: str, data: str):
+    """Generates insights by calling the Gemini API."""
+    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+    if not GEMINI_API_KEY:
+        print("🔴 GEMINI_API_KEY is not set. Please check your environment variables in Railway.")
+        raise HTTPException(status_code=500, detail="AI API key is not configured.")
+
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+
+        today_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # Base prompt structure
+        prompt_template = f"You are a fintech analyst. Based on the following performance data for {today_date}, provide a short summary and 3 actionable recommendations to improve performance. Data:\n\n{data}"
+        
+        # Specific prompts for each data source
+        if data_source == "plaid":
+            prompt = f"You are a fintech analyst specializing in personal finance. Based on the following financial transaction data, provide a short summary and 3 actionable recommendations to improve the user's financial performance. Data:\n\n{data}"
+        elif data_source == "clearbit":
+             prompt = f"You are a business strategy analyst. Based on the following company performance data, provide a short summary and 3 actionable recommendations to improve the company's business performance and market position. Data:\n\n{data}"
+        elif data_source == "openbb":
+             prompt = f"You are a stock market analyst. Based on the following stock market performance data (including chart data, news, and performance metrics), provide a short summary and 3 actionable investment recommendations for a potential investor. Data:\n\n{data}"
+        else:
+            prompt = prompt_template
+
+        response = model.generate_content(prompt)
+        return response.text
+
+    except Exception as e:
+        print(f"🔴 Error calling Gemini API: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred during insight generation: {str(e)}")
+
 
 # --- API Models ---
 class InsightsRequest(BaseModel):
@@ -63,7 +99,7 @@ async def get_latest_data(data_source: str):
     from the PostgreSQL database.
     """
     print(f"Received request for latest '{data_source}' data from the database.")
-
+    
     if data_source not in ["plaid", "clearbit", "openbb"]:
         raise HTTPException(status_code=400, detail="Invalid data source")
 
@@ -98,34 +134,19 @@ async def get_latest_data(data_source: str):
 @app.post("/api/generate-insights")
 async def get_insights(request: InsightsRequest):
     """
-    This endpoint generates AI insights by calling the Genkit flow endpoint.
+    This endpoint generates AI insights by calling the Gemini API directly from Python.
     """
-    print(f"Received request to generate real insights for '{request.dataSource}'.")
-    genkit_flow_url = "http://localhost:3400/flows/generateDataInsightsFlow"
+    print(f"Received request to generate REAL insights for '{request.dataSource}' using Gemini.")
     
-    payload = {
-        "input": {
-            "dataSource": request.dataSource,
-            "data": request.data
-        }
-    }
-
     try:
-        response = requests.post(genkit_flow_url, json=payload, headers={"Content-Type": "application/json"})
-        response.raise_for_status()
-        
-        flow_result = response.json()
-        if "output" in flow_result:
-            return flow_result["output"]
-        else:
-            raise HTTPException(status_code=500, detail="Genkit flow did not return the expected output format.")
-
-    except requests.exceptions.RequestException as e:
-        print(f"🔴 Error calling Genkit flow: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred during insight generation: {str(e)}")
+        insights = generate_insights_from_gemini(request.dataSource, request.data)
+        return {"insights": insights}
+    except HTTPException as e:
+        # Re-raise HTTPExceptions to return proper status codes to the client
+        raise e
     except Exception as e:
-        print(f"🔴 Error processing Genkit response: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred after insight generation: {str(e)}")
+        print(f"🔴 Error in get_insights endpoint: {e}")
+        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
 
 
 @app.get("/api")
