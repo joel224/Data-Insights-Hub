@@ -18,7 +18,7 @@ IS_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
 # --- Database Connection Setup ---
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
-    DATABASE_URL = os.getenv("DATABASE_URL")
+    DATABASE_URL = "postgresql://postgres:LmGJalVzyaEimCvkJGLCvwEibHeDrhTI@maglev.proxy.rlwy.net:15976/railway"
     print("⚙️ [DB] Attempting to connect to the database...")
 
     if not DATABASE_URL:
@@ -142,10 +142,13 @@ def fetch_and_store_data(source):
     
     data = {}
     if source == 'openbb':
+        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_openbb_news()")
         data = {"news": fetch_openbb_news()}
     elif source == 'plaid':
+        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
         data = {"news": fetch_newsapi_news()}
     elif source == 'clearbit':
+        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
         data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
@@ -259,6 +262,16 @@ def generate_and_store_insights(source):
 if __name__ == "__main__":
     print("🚀 Starting scheduled data job...")
 
+    # First, ensure the schema exists.
+    db_conn = get_db_connection()
+    if db_conn:
+        create_schema(db_conn)
+        db_conn.close()
+    else:
+        print("🔴 [Scheduler] Database connection failed. Cannot verify schema or run jobs.")
+        sys.exit(1)
+
+
     data_sources_to_run = ["openbb", "plaid", "clearbit"]
 
     for source in data_sources_to_run:
@@ -303,4 +316,5 @@ def create_schema(connection):
     
 
     
+
 

@@ -21,7 +21,7 @@ load_dotenv()
 
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
-    DATABASE_URL = os.getenv("DATABASE_URL")
+    DATABASE_URL = "postgresql://postgres:LmGJalVzyaEimCvkJGLCvwEibHeDrhTI@maglev.proxy.rlwy.net:15976/railway"
     if not DATABASE_URL:
         print("🔴 DATABASE_URL is not set. Please check your environment variables in Railway.")
         return None
@@ -146,13 +146,13 @@ async def get_latest_data(data_source: str):
             insights_result = cur.fetchone()
             print(f"✅ [DB] Insights result: {'Found' if insights_result else 'Not Found'}")
 
-            # If no data and no insights are found, then we have a problem.
-            if not data_result and not insights_result:
+            # If no data is found, we have a problem.
+            if not data_result:
                 raise HTTPException(status_code=404, detail=f"No data or insights found for {data_source}. Run the scheduler to populate data.")
 
-            # Build a flexible response.
+            # Build a flexible response. Insights can be optional.
             response_data = {
-                "data": data_result['data'] if data_result else None,
+                "data": data_result['data'],
                 "insights": insights_result['insights'] if insights_result else None
             }
 
@@ -192,4 +192,5 @@ else:
 
 
     
+
 
