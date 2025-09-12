@@ -6,16 +6,10 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from dotenv import load_dotenv
-import psycopg2
-from psycopg2.extras import RealDictCursor
 from pydantic import BaseModel
 import sys
-
-# Load environment variables from a .env file
-load_dotenv()
-
-app = FastAPI()
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 # --- Database Connection Setup ---
 DATABASE_URL = os.getenv("DATABASE_URL")
@@ -24,7 +18,7 @@ print(f"DEBUG: DATABASE_URL from main.py: {DATABASE_URL}") # Debug print
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     if not DATABASE_URL:
-        print("🔴 DATABASE_URL is not set. Please check your .env file.")
+        print("🔴 DATABASE_URL is not set. Please check your environment variables in Railway.")
         return None
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -37,6 +31,7 @@ def get_db_connection():
         return None
 
 # --- CORS Middleware Setup ---
+app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
