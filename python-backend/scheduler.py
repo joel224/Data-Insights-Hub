@@ -51,6 +51,9 @@ def fetch_newsapi_news():
         response.raise_for_status() 
         articles = response.json().get("articles", [])
         
+        print("🤖 [DEBUG] RAW NEWSAPI.ORG RESPONSE:")
+        print(json.dumps(response.json(), indent=2))
+        
         news_data = []
         for i, article in enumerate(articles):
             published_at_str = article.get('publishedAt')
@@ -96,6 +99,9 @@ def fetch_openbb_news():
         print("📡 [OpenBB] Fetching world news...")
         res = obb.news.world(limit=10)
         articles = res.to_dicts()
+
+        print("🤖 [DEBUG] RAW OPENBB RESPONSE:")
+        print(json.dumps(articles, indent=2))
 
         news_data = []
         for i, article in enumerate(articles):
@@ -144,10 +150,6 @@ def fetch_and_store_data(source):
     if not data or not data.get("news"):
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
         return
-
-    if IS_DEBUG:
-        print(f"📋 [DEBUG] Fetched data for {source}:")
-        print(json.dumps(data, indent=2))
 
     db_conn = get_db_connection()
     if not db_conn:
@@ -294,5 +296,7 @@ def create_schema(connection):
         print(f"🔴 Error creating schema in scheduler: {e}")
         connection.rollback()
 
+
+    
 
     
