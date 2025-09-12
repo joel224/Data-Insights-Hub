@@ -86,3 +86,11 @@ async def get_latest_data(data_source: str):
 @app.get("/api")
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
+
+# --- Serve Static Files ---
+# This must be the last mount
+app.mount("/", StaticFiles(directory="out", html=True), name="static")
+
+@app.exception_handler(404)
+async def custom_404_handler(_, __):
+    return FileResponse('out/index.html')
