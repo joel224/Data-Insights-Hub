@@ -16,9 +16,6 @@ RUN npm run build
 FROM python:3.11-slim
 WORKDIR /app
 
-# Copy the built Next.js app from the build stage
-COPY --from=build-stage /app/out ./out
-
 # Copy and install Python dependencies from the python-backend directory
 COPY python-backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
@@ -26,4 +23,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the Python backend code
 COPY python-backend/ ./python-backend/
 
+# Copy the built Next.js app from the build stage
+COPY --from=build-stage /app/out ./out
+
+# Run the FastAPI server
 CMD ["uvicorn", "python-backend.main:app", "--host", "0.0.0.0", "--port", "8000"]

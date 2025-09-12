@@ -3,7 +3,6 @@ import json
 from datetime import datetime, timedelta
 import random
 import psycopg2
-from dotenv import load_dotenv
 import sys
 
 # --- Database Connection Setup ---
