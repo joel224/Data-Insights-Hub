@@ -26,19 +26,20 @@ export async function generateDataInsights(input: GenerateDataInsightsInput): Pr
   return generateDataInsightsFlow(input);
 }
 
-const plaidPrompt = `You are an expert financial analyst. Based on the provided transaction data, generate a concise summary and 2-3 actionable recommendations.
+const plaidPrompt = `You are a fintech analyst. Based on the following financial transaction data, provide a short summary and 3 actionable recommendations to improve financial performance.
 
-Data: {{{data}}}`;
+Data:
+{{{data}}}`;
 
-const clearbitPrompt = `You are a business intelligence expert. Based on the provided company data, generate a concise summary and 2-3 actionable recommendations related to market positioning or growth.
+const clearbitPrompt = `You are a fintech analyst. Based on the following company performance data, provide a short summary and 3 actionable recommendations to improve business performance and market position.
 
-Data: {{{data}}}`;
+Data:
+{{{data}}}`;
 
-const openbbPrompt = `You are an expert financial analyst. Based on the provided market data (including price, SMA, RSI, and news), provide:
-1.  A concise summary of the current market situation.
-2.  2-3 actionable recommendations (e.g., "Consider buying on dips if RSI is below 30" or "Watch for resistance at the current SMA level").
+const openbbPrompt = `You are a fintech analyst. Based on the following stock market performance data (including chart data, news, and performance metrics), provide a short summary and 3 actionable recommendations for a potential investor.
 
-Data: {{{data}}}`;
+Data:
+{{{data}}}`;
 
 
 const generateDataInsightsFlow = ai.defineFlow(
