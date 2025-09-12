@@ -1,20 +1,23 @@
-# Use a lightweight official Python 3 image
+# Use an official lightweight Python image.
 FROM python:3.11-slim
 
-# Set the working directory to the Python app's folder
-WORKDIR /usr/src/app
+# Set the working directory in the container.
+WORKDIR /app
 
-# Copy the requirements file first to leverage Docker layer caching
-COPY ./python-backend/requirements.txt .
+# Set the PYTHONPATH to ensure modules are found correctly.
+ENV PYTHONPATH=/app
 
-# Install dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy only the Python backend code and its requirements.
+COPY ./python-backend/requirements.txt /app/python-backend/requirements.txt
+COPY ./python-backend /app/python-backend
 
-# Copy the Python backend code into the working directory
-COPY ./python-backend/ .
+# Install the Python dependencies.
+RUN pip install --no-cache-dir -r /app/python-backend/requirements.txt
 
-# Expose the port Uvicorn will listen on
+# Expose the port the app runs on.
 EXPOSE 8000
 
-# Define the command to run the application from the working directory
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Define the command to run the application.
+# This tells uvicorn to look for the 'app' object in the 'main.py' file
+# inside the 'python-backend' directory.
+CMD ["uvicorn", "python-backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
