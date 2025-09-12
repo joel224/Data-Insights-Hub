@@ -45,12 +45,13 @@ def store_in_postgres(connection, source, data_to_store):
         with connection.cursor() as cur:
             # This SQL statement should match your existing table structure.
             # Using the schema you provided: (id, api_name, data, timestamp)
+            # We set a default value for timestamp to NOW() at UTC.
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS api_data (
                     id SERIAL PRIMARY KEY,
                     api_name VARCHAR(50),
                     data JSONB,
-                    fetched_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc')
+                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc')
                 );
             """)
 
