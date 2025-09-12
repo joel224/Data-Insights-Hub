@@ -30,12 +30,8 @@ COPY python-backend/ ./python-backend/
 # Copy the Procfile for honcho
 COPY Procfile ./Procfile
 
-# Create an empty public directory to ensure the copy command doesn't fail
-RUN mkdir -p public
-
 # Copy the built Next.js application from the build stage
 COPY --from=build-stage /app/.next ./.next
-COPY --from=build-stage /app/public ./public
 COPY --from=build-stage /app/package.json ./package.json
 COPY --from=build-stage /app/next.config.ts ./next.config.ts
 
