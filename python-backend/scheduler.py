@@ -29,37 +29,6 @@ def get_db_connection():
         return None
 
 
-def create_schema(connection):
-    """Creates the necessary tables if they don't exist."""
-    if not connection:
-        print("🔴 Cannot create schema, no database connection.")
-        return
-    
-    try:
-        with connection.cursor() as cur:
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS api_data (
-                    id SERIAL PRIMARY KEY,
-                    api_name VARCHAR(50) NOT NULL UNIQUE,
-                    data JSONB,
-                    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
-                );
-            """)
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS daily_recommendations (
-                    id SERIAL PRIMARY KEY,
-                    data_source VARCHAR(50) NOT NULL UNIQUE,
-                    insights TEXT,
-                    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
-                );
-            """)
-        connection.commit()
-        print("🟢 Schema checked/created successfully.")
-    except Exception as e:
-        print(f"🔴 Error creating schema: {e}")
-        connection.rollback()
-
-
 def fetch_newsapi_news():
     """Fetches live general business news from NewsAPI.org."""
     NEWS_API_KEY = os.getenv("NEWS_API_KEY")
@@ -253,13 +222,14 @@ def generate_and_store_insights(source):
 if __name__ == "__main__":
     print("🚀 Starting scheduled data job...")
 
+    # Schema creation is now handled by main.py on startup.
+    # We just need to check for a connection here before proceeding.
     conn = get_db_connection()
-    if conn:
-        create_schema(conn)
-        conn.close()
-    else:
+    if not conn:
         print("🔴 Cannot proceed without a database connection. Exiting scheduler.")
         sys.exit(1)
+    conn.close()
+
 
     data_sources_to_run = ["openbb", "plaid", "clearbit"]
 

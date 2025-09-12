@@ -12,18 +12,10 @@ import psycopg2
 from psycopg2.extras import RealDictCursor
 from starlette.staticfiles import StaticFiles
 import google.generativeai as genai
+from contextlib import asynccontextmanager
 
-# --- CORS Middleware Setup ---
-app = FastAPI()
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"], 
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# --- Database Connection and Schema Setup ---
 
-# --- Database Connection Setup ---
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     DATABASE_URL = os.getenv("DATABASE_URL")
@@ -39,6 +31,65 @@ def get_db_connection():
     except Exception as e:
         print(f"🔴 An unexpected error occurred during database connection: {e}")
         return None
+
+def create_schema(connection):
+    """Creates the necessary tables if they don't exist."""
+    if not connection:
+        print("🔴 Cannot create schema, no database connection.")
+        return
+    
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS api_data (
+                    id SERIAL PRIMARY KEY,
+                    api_name VARCHAR(50) NOT NULL UNIQUE,
+                    data JSONB,
+                    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS daily_recommendations (
+                    id SERIAL PRIMARY KEY,
+                    data_source VARCHAR(50) NOT NULL UNIQUE,
+                    insights TEXT,
+                    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+                );
+            """)
+        connection.commit()
+        print("🟢 Schema checked/created successfully.")
+    except Exception as e:
+        print(f"🔴 Error creating schema: {e}")
+        connection.rollback()
+
+
+# --- FastAPI App Lifespan (for startup events) ---
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # On startup
+    print("🚀 Application starting up...")
+    db_conn = get_db_connection()
+    if db_conn:
+        create_schema(db_conn)
+        db_conn.close()
+    else:
+        print("🔴 Database connection failed on startup. Schema not created.")
+    yield
+    # On shutdown
+    print("👋 Application shutting down...")
+
+
+# --- CORS Middleware Setup ---
+app = FastAPI(lifespan=lifespan)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # --- API Endpoints ---
 
