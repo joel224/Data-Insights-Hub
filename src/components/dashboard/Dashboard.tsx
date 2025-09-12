@@ -15,14 +15,17 @@ import { OpenbbDataView } from './OpenbbDataView';
 import { InsightsCard } from './InsightsCard';
 import { InsightsSkeleton, OpenbbDataSkeleton } from './LoadingStates';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '';
-
 async function fetchPipelineData(dataSource: DataSource): Promise<{ data: any; insights?: string; error?: string }> {
   try {
-    const response = await fetch(`${API_BASE_URL}/api/get-latest-data/${dataSource}`, { cache: 'no-store' });
+    const response = await fetch(`/api/get-latest-data/${dataSource}`, { cache: 'no-store' });
     if (!response.ok) {
       const errorText = await response.text();
-      throw new Error(`Failed to fetch data for ${dataSource}: ${errorText}`);
+      try {
+        const errorJson = JSON.parse(errorText);
+        throw new Error(`Failed to fetch data for ${dataSource}: ${errorJson.detail || errorText}`);
+      } catch (e) {
+        throw new Error(`Failed to fetch data for ${dataSource}: ${errorText}`);
+      }
     }
     const result = await response.json();
     return { data: result.data, insights: result.insights };
@@ -166,5 +169,3 @@ export function Dashboard() {
     </Tabs>
   );
 }
-
-    
