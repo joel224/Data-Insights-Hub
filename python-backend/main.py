@@ -7,7 +7,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
-from fastapi.staticfiles import StaticFiles
 
 # Load environment variables from a .env file
 load_dotenv()
@@ -30,9 +29,11 @@ def get_db_connection():
         return None
 
 # --- CORS Middleware Setup ---
+# This is important for allowing the Next.js app to talk to the Python API
+# when running in development or as separate services.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"], # In production, you might want to restrict this
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,7 +58,6 @@ async def get_latest_data(data_source: str):
 
     try:
         with db_conn.cursor(cursor_factory=RealDictCursor) as cur:
-            # Query to get the most recent record for the specified api_name
             cur.execute("""
                 SELECT data
                 FROM api_data
@@ -71,7 +71,6 @@ async def get_latest_data(data_source: str):
             if not result:
                 raise HTTPException(status_code=404, detail=f"No data found for data source: {data_source}")
 
-            # The 'data' column is JSONB, which psycopg2/RealDictCursor returns as a dict
             return result['data']
 
     except Exception as e:
@@ -86,5 +85,4 @@ async def get_latest_data(data_source: str):
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
 
-# This must be the last mount
-app.mount("/", StaticFiles(directory="out", html=True), name="static")
+# The StaticFiles mount is no longer needed, as Next.js will serve the frontend.

@@ -4,8 +4,5 @@ psycopg2-binary
 python-dotenv
 flask-cors
 google-generativeai
-# Add other Python packages you need here, for example:
-  # For PostgreSQL connection
-requests         # For making HTTP requests to external APIs
-
-    
+honcho
+requests
