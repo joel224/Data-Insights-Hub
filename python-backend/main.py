@@ -178,7 +178,7 @@ static_files_dir = os.path.join(current_dir, "out")
 
 # If 'out' is not in the current directory, check the parent directory.
 if not os.path.isdir(static_files_dir):
-    static_files_dir = os.path.join(current_dir, "..", "out")
+    static_files_dir = os.path.join(os.path.dirname(current_dir), "out")
 
 # Check if the directory exists before mounting.
 if os.path.isdir(static_files_dir):
@@ -186,5 +186,3 @@ if os.path.isdir(static_files_dir):
     print(f"🟢 Serving static files from: {static_files_dir}")
 else:
     print(f"🟡 Warning: Static files directory not found at '{static_files_dir}'. The frontend will not be served.")
-
-

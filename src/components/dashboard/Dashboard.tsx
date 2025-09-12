@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -17,7 +16,8 @@ import { InsightsSkeleton, OpenbbDataSkeleton } from './LoadingStates';
 
 async function fetchPipelineData(dataSource: DataSource): Promise<{ data: any; insights?: string; error?: string }> {
   try {
-    const response = await fetch(`/api/get-latest-data/${dataSource}`, { cache: 'no-store' });
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
+    const response = await fetch(`${baseUrl}/api/get-latest-data/${dataSource}`, { cache: 'no-store' });
     if (!response.ok) {
       const errorText = await response.text();
       try {
