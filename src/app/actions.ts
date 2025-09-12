@@ -8,8 +8,12 @@ import type { DataSource } from '@/lib/types';
 const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || 'http://127.0.0.1:8000';
 
 async function fetchLatestDataFromPython(dataSource: DataSource) {
+  const fetchUrl = `${PYTHON_BACKEND_URL}/api/get-latest-data/${dataSource}`;
+  // Add console log for debugging the fetch URL
+  console.log(`Attempting to fetch data from: ${fetchUrl}`);
+
   // We add /api to the path to match the updated backend route
-  const response = await fetch(`${PYTHON_BACKEND_URL}/api/get-latest-data/${dataSource}`, {
+  const response = await fetch(fetchUrl, {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
