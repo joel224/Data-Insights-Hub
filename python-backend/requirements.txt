@@ -6,3 +6,4 @@ flask-cors
 google-generativeai
 honcho
 requests
+openbb

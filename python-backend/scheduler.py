@@ -7,6 +7,7 @@ import psycopg2
 import sys
 import requests
 import google.generativeai as genai
+from openbb import obb
 
 # --- Database Connection Setup ---
 def get_db_connection():
@@ -59,11 +60,11 @@ def create_schema(connection):
         connection.rollback()
 
 
-def fetch_live_news():
-    """Fetches live financial news from NewsAPI.org."""
+def fetch_newsapi_news():
+    """Fetches live general business news from NewsAPI.org."""
     NEWS_API_KEY = os.getenv("NEWS_API_KEY")
     if not NEWS_API_KEY:
-        print("🟡 NEWS_API_KEY not set. Skipping live news fetch.")
+        print("🟡 NEWS_API_KEY not set. Skipping NewsAPI fetch.")
         return [{"id": "1", "title": "Live News Fetching Disabled: NEWS_API_KEY is not set.", "url": "#", "source": "System", "published": "Now"}]
 
     try:
@@ -96,11 +97,54 @@ def fetch_live_news():
                 "source": article.get("source", {}).get("name", "Unknown"),
                 "published": published
             })
-        print(f"🟢 Successfully fetched {len(news_data)} news articles.")
+        print(f"🟢 Successfully fetched {len(news_data)} news articles from NewsAPI.")
         return news_data
     except requests.exceptions.RequestException as e:
-        print(f"🔴 Error fetching live news: {e}")
-        return [{"id": "1", "title": "Failed to fetch live news.", "url": "#", "source": "System Error", "published": "Now"}]
+        print(f"🔴 Error fetching live news from NewsAPI: {e}")
+        return [{"id": "1", "title": "Failed to fetch live news from NewsAPI.", "url": "#", "source": "System Error", "published": "Now"}]
+
+def fetch_openbb_news():
+    """Fetches financial news using the OpenBB SDK."""
+    OPENBB_API_KEY = os.getenv("OPENBB_API_KEY")
+    if not OPENBB_API_KEY:
+        print("🟡 OPENBB_API_KEY not set. Skipping OpenBB news fetch.")
+        return [{"id": "1", "title": "OpenBB News Fetching Disabled: OPENBB_API_KEY is not set.", "url": "#", "source": "System", "published": "Now"}]
+    
+    try:
+        obb.account.login(pat=OPENBB_API_KEY)
+        print("🟢 Successfully authenticated with OpenBB.")
+        # Fetching world news, which is a good proxy for general market news
+        res = obb.news.world(limit=10)
+        articles = res.to_dicts()
+
+        news_data = []
+        for i, article in enumerate(articles):
+            published_at = article.get('published_at')
+            if not published_at:
+                published = "some time ago"
+            else:
+                now = datetime.now(published_at.tzinfo)
+                time_diff = now - published_at
+
+                if time_diff.total_seconds() < 3600:
+                    published = f"{int(time_diff.total_seconds() / 60)}m ago"
+                elif time_diff.total_seconds() < 86400:
+                    published = f"{int(time_diff.total_seconds() / 3600)}h ago"
+                else:
+                    published = f"{int(time_diff.total_seconds() / 86400)}d ago"
+            
+            news_data.append({
+                "id": article.get("id", str(i + 1)),
+                "title": article.get("title", "No title available"),
+                "url": article.get("url", "#"),
+                "source": article.get("publisher", {}).get("name", "Unknown"),
+                "published": published
+            })
+        print(f"🟢 Successfully fetched {len(news_data)} news articles from OpenBB.")
+        return news_data
+    except Exception as e:
+        print(f"🔴 Error fetching news from OpenBB: {e}")
+        return [{"id": "1", "title": "Failed to fetch live news from OpenBB.", "url": "#", "source": "System Error", "published": "Now"}]
 
 
 def fetch_and_store_data(source):
@@ -109,7 +153,11 @@ def fetch_and_store_data(source):
     """
     print(f"--- Running data fetch pipeline for: {source} ---")
     
-    data = {"news": fetch_live_news()}
+    data = {}
+    if source == 'openbb':
+        data = {"news": fetch_openbb_news()}
+    elif source in ['plaid', 'clearbit']:
+        data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
         print(f"🟡 No data fetched for {source}. Skipping database storage.")
