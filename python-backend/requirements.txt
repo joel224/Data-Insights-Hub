@@ -1,6 +1,9 @@
 fastapi
 uvicorn[standard]
+psycopg2-binary
 python-dotenv
+flask-cors
+google-generativeai
 # Add other Python packages you need here, for example:
-# psycopg2-binary  # For PostgreSQL connection
-# requests         # For making HTTP requests to external APIs
+  # For PostgreSQL connection
+requests         # For making HTTP requests to external APIs

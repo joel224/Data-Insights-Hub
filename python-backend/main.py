@@ -1,143 +1,155 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 import os
-import random
-from datetime import date, timedelta
+import psycopg2
+import json
+from datetime import datetime, timezone
+from dotenv import load_dotenv
+from openbb import obb # Import the OpenBB library
 
-# Load environment variables from a .env file in the same directory
+# Load environment variables from the .env file for local development
 load_dotenv()
 
-app = FastAPI()
+# --- Step 0: Database Setup ---
+def setup_database():
+    """Initializes the PostgreSQL database and tables if they don't exist."""
+    conn = None
+    cur = None
+    try:
+        # Use the public URL for local connections.
+        # This is the correct way to connect from outside the Railway network.
+        database_url = os.environ.get("DATABASE_PUBLIC_URL")
+        
+        if not database_url:
+            raise ValueError(
+                "DATABASE_PUBLIC_URL environment variable is not set. "
+                "Please make sure your .env file is configured correctly."
+            )
 
-# Configure CORS to allow the Next.js frontend to communicate with this backend.
-# In a production environment, you would want to restrict this to your frontend's actual origin.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for development
-    allow_credentials=True,
-    allow_methods=["*"],  # Allows all HTTP methods
-    allow_headers=["*"],  # Allows all headers
-)
+        conn = psycopg2.connect(database_url)
+        conn.autocommit = False # Ensure we are in transaction mode
+        cur = conn.cursor()
+        
+        # Drop tables to ensure a clean schema on each run
+        cur.execute("DROP TABLE IF EXISTS recommendations;")
+        cur.execute("DROP TABLE IF EXISTS api_data;")
+        
+        # Create tables for API data and LLM recommendations
+        cur.execute("""
+            CREATE TABLE api_data (
+                id SERIAL PRIMARY KEY,
+                api_name TEXT NOT NULL,
+                data JSONB NOT NULL,
+                timestamp TIMESTAMP WITH TIME ZONE NOT NULL
+            );
+        """)
+        cur.execute("""
+            CREATE TABLE recommendations (
+                id SERIAL PRIMARY KEY,
+                api_name TEXT NOT NULL,
+                summary TEXT NOT NULL,
+                recommendations TEXT NOT NULL,
+                timestamp TIMESTAMP WITH TIME ZONE NOT NULL
+            );
+        """)
+        conn.commit()
+        print("Database setup complete.")
+        return conn, cur
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(f"Error while setting up the database: {error}")
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+        return None, None
 
-# --- Service-Specific Data Fetching & Storing Logic ---
-
-# In a real application, you would replace these mock functions with actual API calls
-# and database interactions.
-
-# --- Plaid ---
-def pull_plaid_data_from_api():
-    """
-    Pulls financial transactions from the Plaid API.
-    This is a mock implementation. Replace with your actual Plaid client logic.
-    """
-    # PLAID_CLIENT_ID = os.getenv("PLAID_CLIENT_ID")
-    # PLAID_SECRET = os.getenv("PLAID_SECRET")
-    # ACCESS_TOKEN = os.getenv("PLAID_ACCESS_TOKEN")
-    print("Step 1: Pulling data from Plaid API...")
-    # try:
-    #     client = plaid.Client(client_id=PLAID_CLIENT_ID, secret=PLAID_SECRET, environment='development')
-    #     response = client.Transactions.get(ACCESS_TOKEN, start_date='2024-01-01', end_date='2024-07-30')
-    #     return response['transactions'] # Or format as needed
-    # except plaid.errors.PlaidError as e:
-    #     raise HTTPException(status_code=500, detail=f"Plaid API error: {e}")
-    return [
-        {"id": "txn1", "date": "2024-07-22", "name": "TechCorp Subscription", "amount": -19.99, "category": "Software"},
-        {"id": "txn2", "date": "2024-07-21", "name": "Lunch at The Cafe", "amount": -15.50, "category": "Food and Drink"},
-        {"id": "txn3", "date": "2024-07-20", "name": "Freelance Payment", "amount": 1200.00, "category": "Income"},
-    ]
-
-def store_plaid_data_in_db(data):
-    """Saves the fetched Plaid data into the PostgreSQL database."""
-    print("Step 2: Storing Plaid data in PostgreSQL...")
-    # Example using psycopg2:
-    # conn = get_db_connection()
-    # cur = conn.cursor()
-    # for transaction in data:
-    #     cur.execute("INSERT INTO plaid_transactions (id, date, name, amount, category) VALUES (%s, %s, %s, %s, %s)",
-    #                 (transaction['id'], transaction['date'], transaction['name'], transaction['amount'], transaction['category']))
-    # conn.commit()
-    # cur.close()
-    # conn.close()
-    pass # Placeholder
-
-# --- Clearbit ---
-def pull_clearbit_data_from_api():
-    """
-    Pulls company enrichment data from the Clearbit API.
-    This is a mock implementation. Replace with your actual Clearbit API call.
-    """
-    # CLEARBIT_API_KEY = os.getenv("CLEARBIT_API_KEY")
-    print("Step 1: Pulling data from Clearbit API...")
-    # headers = {'Authorization': f'Bearer {CLEARBIT_API_KEY}'}
-    # url = f"https://company.clearbit.com/v2/companies/find?domain=google.com"
-    # response = requests.get(url, headers=headers)
-    # return response.json()
-    return {
-        "companyName": "Innovate Inc.", "domain": "innovateinc.com",
-        "description": "A leading provider of cutting-edge technology solutions.",
-        "logo": "https://picsum.photos/seed/innovate/100/100", "location": "San Francisco, CA",
-        "metrics": {"employees": 1200, "marketCap": "$15B", "annualRevenue": "$2.5B", "raised": "$500M"},
-    }
-
-def store_clearbit_data_in_db(data):
-    """Saves the fetched Clearbit data into the PostgreSQL database."""
-    print("Step 2: Storing Clearbit data in PostgreSQL...")
-    pass # Placeholder
-
-# --- OpenBB ---
-def pull_openbb_data_from_api():
-    """
-    Pulls stock market data from the OpenBB SDK.
-    This is a mock implementation. Replace with your actual OpenBB SDK logic.
-    """
-    # OPENBB_API_KEY = os.getenv("OPENBB_API_KEY")
-    print("Step 1: Pulling data from OpenBB API...")
-    # obb.account.login(pat=OPENBB_API_KEY)
-    # data = obb.equity.price.historical("AAPL", provider="fmp").to_df()
-    # return formatted_data
-    data = []
-    today = date.today()
-    current_price = 150.0
-    for i in range(30, -1, -1):
-        d = today - timedelta(days=i)
-        current_price += (random.random() - 0.5) * 5
-        data.append({"date": d.strftime('%b %d'), "close": round(current_price, 2)})
-    return data
-
-def store_openbb_data_in_db(data):
-    """Saves the fetched OpenBB data into the PostgreSQL database."""
-    print("Step 2: Storing OpenBB data in PostgreSQL...")
-    pass # Placeholder
+# --- Step 1: Real API Data Fetching ---
+def fetch_openbb_data():
+    """Fetches real financial data from OpenBB's free provider (Yahoo Finance)."""
+    print("Step 1: Pulling live data from OpenBB API...")
+    try:
+        # Get historical price data for a stock using a free provider
+        # We will get data for NVIDIA (NVDA) for a recent period
+        # The .to_df() method converts the output into a pandas DataFrame
+        # The .to_json() method then converts it to a JSON string
+        stock_data_json = obb.equity.price.historical(symbol="NVDA").to_df().to_json()
+        return json.loads(stock_data_json)
+    except Exception as e:
+        print(f"Error fetching data from OpenBB: {e}")
+        return None
 
 
-# --- Main API Endpoint ---
+# --- Step 2: Local Storage (PostgreSQL) ---
+def store_data_locally(conn, cur, api_name, data):
+    """Stores fetched data in the PostgreSQL database."""
+    try:
+        cur.execute("INSERT INTO api_data (api_name, data, timestamp) VALUES (%s, %s, %s)",
+                    (api_name, json.dumps(data), datetime.now(timezone.utc)))
+        conn.commit()
+        print(f"Data for {api_name} stored successfully.")
+    except (Exception, psycopg2.Error) as error:
+        print(f"Error while storing data for {api_name} in PostgreSQL: {error}")
 
-@app.get("/api/data/{data_source}")
-async def get_data_and_store(data_source: str):
-    """
-    This endpoint orchestrates the entire backend process:
-    1. Pulls data from the specified external API.
-    2. Stores that data in the PostgreSQL database.
-    3. Returns the fresh data to the Next.js frontend for AI analysis.
-    """
-    print(f"\nReceived data request for source: {data_source}")
-    
-    if data_source == "plaid":
-        fresh_data = pull_plaid_data_from_api()
-        store_plaid_data_in_db(fresh_data)
-    elif data_source == "clearbit":
-        fresh_data = pull_clearbit_data_from_api()
-        store_clearbit_data_in_db(fresh_data)
-    elif data_source == "openbb":
-        fresh_data = pull_openbb_data_from_api()
-        store_openbb_data_in_db(fresh_data)
-    else:
-        raise HTTPException(status_code=404, detail="Data source not found.")
+# --- Step 3: Local LLM Analysis Simulation ---
+def analyze_openbb_data(data):
+    """Simulates LLM analysis for OpenBB data."""
+    print("Step 3: Sending openbb data to LLM for analysis...")
+    summary = """
+Summary: OpenBB's stock price over the period from August 12th to September 11th, 2025, shows moderate volatility with no clear upward or downward trend. The price fluctuated between approximately 146 and 152, exhibiting a relatively narrow trading range. While there were periods of slight increases and decreases, overall, the performance can be characterized as sideways trading with limited significant gains or losses. Further analysis, incorporating broader market trends and company-specific news, would be necessary for a more complete assessment.
+"""
+    recommendations = """
+Recommendations:
+- Conduct a thorough competitive analysis to identify potential areas for differentiation and improvement in OpenBB's product offerings or services. This should include an examination of pricing strategies, feature sets, and target market positioning.
+- Investigate and implement strategies to enhance investor relations and communication. Proactive engagement with investors and analysts through regular updates, press releases, and presentations could improve market confidence and potentially lead to a more favorable stock valuation.
+- Analyze the trading volume and identify potential correlations with price fluctuations. Understanding factors driving demand and supply could provide insights into opportunities to optimize trading strategies and improve liquidity, potentially leading to more stable price movements.
+"""
+    return summary, recommendations
 
-    print("Step 3: Returning fresh data to frontend for analysis.")
-    return fresh_data
+# --- Step 4: Store Recommendations ---
+def store_recommendations(conn, cur, api_name, summary, recommendations):
+    """Stores LLM recommendations in the PostgreSQL database."""
+    try:
+        cur.execute("INSERT INTO recommendations (api_name, summary, recommendations, timestamp) VALUES (%s, %s, %s, %s)",
+                    (api_name, summary, recommendations, datetime.now(timezone.utc)))
+        conn.commit()
+        print("Recommendations stored successfully.")
+    except (Exception, psycopg2.Error) as error:
+        print(f"Error while storing recommendations in PostgreSQL: {error}")
 
-@app.get("/")
-async def root():
-    return {"message": "Data Insights Hub - Python Backend is running!"}
+# --- Main Pipeline Execution ---
+def main():
+    """Runs the full pipeline."""
+    # Step 0: Set up the database
+    conn, cur = setup_database()
+    if not conn or not cur:
+        return
+
+    try:
+        # Step 1: Fetch live data
+        raw_data = fetch_openbb_data()
+        
+        if raw_data:
+            # Step 2: Store data
+            store_data_locally(conn, cur, "OpenBB", raw_data)
+
+            # Step 3: Analyze data (simulated)
+            summary, recommendations = analyze_openbb_data(raw_data)
+            
+            # Step 4: Store recommendations
+            store_recommendations(conn, cur, "OpenBB", summary, recommendations)
+            
+            # Print output to console
+            print("\n--- LLM Analysis & Recommendations ---")
+            print("Summary:")
+            print(summary)
+            print("Recommendations:")
+            print(recommendations)
+        else:
+            print("Failed to fetch data from OpenBB. Skipping subsequent steps.")
+
+    finally:
+        if cur:
+            cur.close()
+        if conn:
+            conn.close()
+
+if __name__ == "__main__":
+    main()

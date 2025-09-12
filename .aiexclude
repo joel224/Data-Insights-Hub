@@ -1,0 +1,28 @@
+node_modules/
+build/
+assets/
+images/
+videos/
+node_modules/
+# Ignore build directories
+build/
+dist/
+/home
+# Ignore dependency directories
+node_modules/
+vendor/
+
+# Ignore assets
+assets/
+images/
+videos/
+.next/
+node_modules/
+
+*.log
+npm-debug.log*
+.vscode/
+.idea/
+.DS_Store
+out/
+.vercel/
