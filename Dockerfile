@@ -9,14 +9,8 @@ RUN npm install --legacy-peer-deps
 # Copy the rest of the Next.js app source code
 COPY . .
 
-# --- DEBUG: List files after copying source ---
-RUN echo "--- Listing files after source copy ---" && ls -la
-
 # Build the Next.js app
 RUN npm run build
-
-# --- DEBUG: List files after build ---
-RUN echo "--- Listing files after build ---" && ls -la && echo "--- Listing .next directory ---" && ls -la .next
 
 
 # --- Stage 2: Setup the final production image ---
@@ -39,9 +33,13 @@ COPY Procfile ./Procfile
 
 # Copy the built Next.js application from the build stage
 COPY --from=build-stage /app/.next ./.next
-COPY --from=build-stage /app/public ./public
 COPY --from=build-stage /app/package.json ./package.json
 COPY --from=build-stage /app/next.config.ts ./next.config.ts
+
+# Create an empty public directory and then copy into it.
+# This prevents the build from failing if the source /app/public doesn't exist.
+RUN mkdir -p ./public
+COPY --from=build-stage --chown=nonroot:nonroot /app/public ./public
 
 # Define the command to run BOTH applications using honcho
 # Honcho will read the Procfile and start the web and api services.
