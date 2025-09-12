@@ -5,12 +5,13 @@ from datetime import datetime, timedelta
 import random
 import psycopg2
 import sys
+import requests
 
 # --- Database Connection Setup ---
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     DATABASE_URL = os.getenv("DATABASE_URL")
-    print(f"DEBUG: DATABASE_URL from scheduler.py: {DATABASE_URL}") # Debug print
+    print(f"DEBUG: Attempting to connect with DATABASE_URL from scheduler.py")
 
     if not DATABASE_URL:
         print("🔴 DATABASE_URL is not set. Please check your environment variables in Railway.")
@@ -42,15 +43,59 @@ def create_schema(connection):
                     timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
                 );
             """)
-            # You can add other table creations here if needed
-            # cur.execute("""
-            #     CREATE TABLE IF NOT EXISTS recommendations ( ... );
-            # """)
         connection.commit()
         print("🟢 Schema checked/created successfully.")
     except Exception as e:
         print(f"🔴 Error creating schema: {e}")
         connection.rollback()
+
+
+def fetch_live_news():
+    """Fetches live financial news from NewsAPI.org."""
+    NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+    if not NEWS_API_KEY:
+        print("🟡 NEWS_API_KEY not set. Skipping live news fetch. Using dummy data.")
+        return [
+            {"id": "1", "title": "Live News Fetching Disabled: NEWS_API_KEY is not set.", "url": "#", "source": "System", "published": "Now"},
+            {"id": "2", "title": "Please add your key to Railway environment variables.", "url": "#", "source": "System", "published": "Now"},
+        ]
+
+    try:
+        # Fetching news related to technology and finance
+        url = f"https://newsapi.org/v2/top-headlines?category=business&language=en&apiKey={NEWS_API_KEY}&pageSize=5"
+        response = requests.get(url)
+        response.raise_for_status() 
+        articles = response.json().get("articles", [])
+        
+        news_data = []
+        for i, article in enumerate(articles):
+            # Format the published time to be more readable
+            published_at = datetime.fromisoformat(article['publishedAt'].replace('Z', '+00:00'))
+            now = datetime.now(published_at.tzinfo)
+            time_diff = now - published_at
+            
+            if time_diff.total_seconds() < 3600:
+                published = f"{int(time_diff.total_seconds() / 60)}m ago"
+            elif time_diff.total_seconds() < 86400:
+                published = f"{int(time_diff.total_seconds() / 3600)}h ago"
+            else:
+                published = f"{int(time_diff.total_seconds() / 86400)}d ago"
+
+
+            news_data.append({
+                "id": str(i + 1),
+                "title": article["title"],
+                "url": article["url"],
+                "source": article.get("source", {}).get("name", "Unknown"),
+                "published": published
+            })
+        print(f"🟢 Successfully fetched {len(news_data)} news articles.")
+        return news_data
+    except requests.exceptions.RequestException as e:
+        print(f"🔴 Error fetching live news: {e}")
+        return [
+             {"id": "1", "title": "Failed to fetch live news.", "url": "#", "source": "System Error", "published": "Now"},
+        ]
 
 
 def fetch_and_store_data(source):
@@ -62,7 +107,7 @@ def fetch_and_store_data(source):
     
     data = {}
     
-    # --- 1. PULL DATA (Simulation) ---
+    # --- 1. PULL DATA (Simulation for Plaid/Clearbit, real news for OpenBB) ---
     if source == "plaid":
         print("Fetching data from Plaid...")
         data = [
@@ -78,7 +123,7 @@ def fetch_and_store_data(source):
             "metrics": { "employees": 1200, "marketCap": "$15B", "annualRevenue": "$2.5B", "raised": "$500M" },
         }
     elif source == "openbb":
-        print("Fetching rich data from OpenBB...")
+        print("Fetching rich data for OpenBB (live news, simulated chart)...")
         today = datetime.now()
         chart_data = []
         price = 150
@@ -91,12 +136,13 @@ def fetch_and_store_data(source):
                 "date": date.strftime("%b %d"), "close": round(price, 2), "sma": round(sma, 2), "rsi": round(rsi, 2)
             })
         chart_data.reverse()
+        
+        # Fetch live news
+        live_news = fetch_live_news()
+
         data = {
           "chartData": chart_data,
-          "news": [
-            {"id": "1", "title": "Tech Stocks Rally on Positive News", "url": "#", "source": "MarketWatch", "published": "2h ago"},
-            {"id": "2", "title": "AI Chipmaker Announces Record Earnings", "url": "#", "source": "Reuters", "published": "5h ago"},
-          ],
+          "news": live_news,
           "performance": { "volatility": "15.2%", "sharpeRatio": "1.8", "annualReturn": "25.4%" }
         }
     else:
@@ -107,7 +153,6 @@ def fetch_and_store_data(source):
     db_conn = get_db_connection()
     if not db_conn:
         print("🔴 Aborting scheduler. Failed to get database connection.")
-        # This will now cause the scheduler to stop running if the DB is not configured.
         sys.exit(1)
 
     try:
@@ -139,11 +184,10 @@ if __name__ == "__main__":
         sys.exit(1) # Exit with an error code
 
     # List of data sources to fetch
-    # You can add 'plaid' and 'clearbit' here as well.
     data_sources_to_run = ["openbb", "plaid", "clearbit"]
 
     for source in data_sources_to_run:
         fetch_and_store_data(source)
     
     print("✅ Scheduled data fetch job finished successfully.")
-    # The script will automatically exit after this line.
+
