@@ -9,8 +9,15 @@ RUN npm install --legacy-peer-deps
 # Copy the rest of the Next.js app source code
 COPY . .
 
+# --- DEBUG: List files after copying source ---
+RUN echo "--- Listing files after source copy ---" && ls -la
+
 # Build the Next.js app
 RUN npm run build
+
+# --- DEBUG: List files after build ---
+RUN echo "--- Listing files after build ---" && ls -la && echo "--- Listing .next directory ---" && ls -la .next
+
 
 # --- Stage 2: Setup the final production image ---
 FROM python:3.11-slim
