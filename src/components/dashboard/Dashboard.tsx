@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { runPipeline } from '@/app/actions';
-import type { ClearbitData, DataSource, OpenBBStockData, PlaidTransaction, PipelineState } from '@/lib/types';
+import type { ClearbitData, DataSource, OpenBBData, PlaidTransaction, PipelineState } from '@/lib/types';
 
 import { PlaidDataView } from './PlaidDataView';
 import { ClearbitDataView } from './ClearbitDataView';
@@ -23,7 +23,7 @@ export function Dashboard() {
 
   const [plaidState, setPlaidState] = useState<PipelineState<PlaidTransaction[]>>({ data: null, insights: null });
   const [clearbitState, setClearbitState] = useState<PipelineState<ClearbitData>>({ data: null, insights: null });
-  const [openbbState, setOpenbbState] = useState<PipelineState<OpenBBStockData[]>>({ data: null, insights: null });
+  const [openbbState, setOpenbbState] = useState<PipelineState<OpenBBData>>({ data: null, insights: null });
 
   const handleGenerate = (dataSource: DataSource) => {
     setActiveDataSource(dataSource);
