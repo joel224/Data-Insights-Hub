@@ -6,7 +6,6 @@ import { Building2, Landmark, LineChart, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { runPipeline } from '@/app/actions';
 import type { ClearbitData, DataSource, OpenBBData, PlaidTransaction, PipelineState } from '@/lib/types';
 
 import { PlaidDataView } from './PlaidDataView';
@@ -14,6 +13,50 @@ import { ClearbitDataView } from './ClearbitDataView';
 import { OpenbbDataView } from './OpenbbDataView';
 import { InsightsCard } from './InsightsCard';
 import { InsightsSkeleton, PlaidDataSkeleton, ClearbitDataSkeleton, OpenbbDataSkeleton } from './LoadingStates';
+
+// In a real deployment, this would be an absolute URL to the deployed backend.
+// For the single-container setup, we use a relative path.
+const API_BASE_URL = '/api';
+
+async function runPipeline(dataSource: DataSource): Promise<{ data: any; insights?: string; error?: string }> {
+  try {
+    // 1. Fetch the latest data from the Python backend's existing endpoint
+    const dataResponse = await fetch(`${API_BASE_URL}/get-latest-data/${dataSource}`, { cache: 'no-store' });
+    if (!dataResponse.ok) {
+      const errorText = await dataResponse.text();
+      throw new Error(`Failed to fetch data for ${dataSource}: ${errorText}`);
+    }
+    const data = await dataResponse.json();
+
+    // 2. Generate insights by calling the new Python endpoint
+    const insightsResponse = await fetch(`${API_BASE_URL}/generate-insights`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        dataSource,
+        data: JSON.stringify(data, null, 2),
+      }),
+    });
+
+    if (!insightsResponse.ok) {
+      const errorText = await insightsResponse.text();
+      throw new Error(`Failed to generate insights for ${dataSource}: ${errorText}`);
+    }
+    const insightsResult = await insightsResponse.json();
+
+    return { data, insights: insightsResult.insights };
+  } catch (e) {
+    console.error(`Pipeline failed for ${dataSource}:`, e);
+    const errorMessage = e instanceof Error ? e.message : 'An unknown error occurred.';
+    return {
+      data: null,
+      error: `Failed to process data. Please ensure the Python backend is running and data has been fetched by the scheduler. Details: ${errorMessage}`,
+    };
+  }
+}
+
 
 export function Dashboard() {
   const [isPending, startTransition] = useTransition();

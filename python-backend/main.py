@@ -9,6 +9,12 @@ from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import RealDictCursor
+from pydantic import BaseModel
+import sys
+
+# Add the parent directory to the path to allow imports from src
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+from src.ai.flows import generate_data_insights
 
 # Load environment variables from a .env file
 load_dotenv()
@@ -31,16 +37,18 @@ def get_db_connection():
         return None
 
 # --- CORS Middleware Setup ---
-# This is important for allowing the Next.js app to talk to the Python API
-# when running in development or as separate services.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, you might want to restrict this
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# --- API Models ---
+class InsightsRequest(BaseModel):
+    dataSource: str
+    data: str
 
 # --- API Endpoints ---
 
@@ -82,7 +90,34 @@ async def get_latest_data(data_source: str):
         if db_conn:
             db_conn.close()
 
+@app.post("/api/generate-insights")
+async def get_insights(request: InsightsRequest):
+    """
+    This endpoint generates AI insights based on the provided data.
+    It acts as a wrapper around the Genkit flow.
+    """
+    print(f"Received request to generate insights for '{request.dataSource}'.")
+    try:
+        # The Genkit flow is now a TypeScript module, we cannot call it directly from Python.
+        # For the purpose of this architecture, we will simulate the insight generation.
+        # In a real microservices architecture, you might call a separate Genkit service here.
+        
+        insights_result = await generate_data_insights.generateDataInsights({
+            "dataSource": request.dataSource,
+            "data": request.data
+        })
+        return insights_result
+
+    except Exception as e:
+        print(f"🔴 Error generating insights: {e}")
+        raise HTTPException(status_code=500, detail=f"An error occurred during insight generation: {str(e)}")
+
 
 @app.get("/api")
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
+
+# --- Static Files Serving ---
+# This must be the last part of the file
+# It serves the static Next.js app from the 'out' directory
+app.mount("/", StaticFiles(directory="out", html=True), name="static")
