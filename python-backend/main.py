@@ -14,28 +14,36 @@ load_dotenv()
 app = FastAPI()
 
 # --- Database Connection Setup ---
-# This is where you'd use the connection string from your .env file
 DATABASE_URL = os.getenv("DATABASE_URL")
 
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     try:
+        # Pass the connection string directly to psycopg2.connect
         conn = psycopg2.connect(DATABASE_URL)
         return conn
     except psycopg2.OperationalError as e:
         print(f"🔴 Could not connect to the database: {e}")
         print("Please check if your DATABASE_URL is correct in the .env file and if the database is running.")
         return None
+    except Exception as e:
+        print(f"🔴 An unexpected error occurred during database connection: {e}")
+        return None
+
 
 def store_in_postgres(connection, source, data_to_store):
     """
     Stores the fetched data in the PostgreSQL database.
-    This function is a placeholder and needs to be adapted to your database schema.
+    This function creates a table if it doesn't exist and inserts the data.
     """
+    if not connection:
+        print("🔴 Cannot store data, no database connection.")
+        return
+
     print(f"Storing {source} data in PostgreSQL...")
     try:
         with connection.cursor() as cur:
-            # Example: Create a table if it doesn't exist. 
+            # Create a table if it doesn't exist.
             # In a real app, you would run this once using a migration tool.
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS api_data (
@@ -60,7 +68,8 @@ def store_in_postgres(connection, source, data_to_store):
         connection.rollback()
     finally:
         # It's good practice to close the connection when you're done
-        connection.close()
+        if connection:
+            connection.close()
 
 
 # --- CORS Middleware Setup ---
@@ -85,17 +94,19 @@ async def get_data(data_source: str):
     """
     print(f"Received request for {data_source} data.")
 
-    # --- 1. Pull Data (The "What" and "From Where") ---
+    data = {}
+    
+    # --- 1. PULL DATA (The "What" and "From Where") ---
     # This is where you would use an API client (e.g., openbb-sdk, plaid-python)
     # to fetch live data from the service's API.
     # API keys should be stored in your .env file and loaded securely.
     # For example: api_key = os.getenv("OPENBB_API_KEY")
-
-    data = {}
-    # --- PULL: This block simulates fetching data from an external API. ---
+    #
+    # This block simulates fetching data from an external API.
+    
     if data_source == "plaid":
         print("Fetching data from Plaid...")
-        # In a real app, you'd replace this with:
+        # --- In a real app, replace this with your actual Plaid client ---
         # client = plaid.ApiClient(...)
         # response = client.transactions_get(...)
         # data = response.to_dict()
@@ -104,9 +115,11 @@ async def get_data(data_source: str):
             { "id": "2", "date": "2024-07-21", "name": "Coffee Beans Co.", "amount": -15.50, "category": "Food & Drink" },
             { "id": "3", "date": "2024-07-20", "name": "Cloud Services LLC", "amount": -150.00, "category": "Services" },
         ]
+        # --- End of Simulation ---
+        
     elif data_source == "clearbit":
         print("Fetching data from Clearbit...")
-        # In a real app, you'd replace this with:
+        # --- In a real app, replace this with your actual Clearbit client ---
         # clearbit.key = os.getenv("CLEARBIT_API_KEY")
         # company = clearbit.Company.find(domain='innovateinc.com', stream=True)
         # data = format_clearbit_data(company)
@@ -123,6 +136,8 @@ async def get_data(data_source: str):
                 "raised": "$500M",
             },
         }
+        # --- End of Simulation ---
+
     elif data_source == "openbb":
         print("Fetching rich data from OpenBB...")
         # --- This simulates fetching rich OpenBB data ---
@@ -160,7 +175,7 @@ async def get_data(data_source: str):
     else:
         return {"error": "Invalid data source"}
 
-    # --- 2. Store Data (The "Secure Vault") ---
+    # --- 2. STORE DATA (The "Secure Vault") ---
     # After fetching the data, store it in your PostgreSQL database.
     # The get_db_connection function handles the connection.
     print("Attempting to store data in PostgreSQL...")
@@ -171,7 +186,7 @@ async def get_data(data_source: str):
         print("🔴 Skipping database storage because connection failed.")
 
 
-    # --- 3. Return Data to Frontend ---
+    # --- 3. RETURN DATA TO FRONTEND ---
     # The fresh data is returned as a JSON response to the Next.js app,
     # which will then send it to the LLM for analysis.
     return data
