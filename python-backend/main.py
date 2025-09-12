@@ -13,6 +13,9 @@ from psycopg2.extras import RealDictCursor
 from starlette.staticfiles import StaticFiles
 import google.generativeai as genai
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Database Connection and Schema Setup ---
 

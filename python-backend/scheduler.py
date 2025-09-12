@@ -8,6 +8,9 @@ import sys
 import requests
 import google.generativeai as genai
 from openbb import obb
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # --- Configuration ---
 IS_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
