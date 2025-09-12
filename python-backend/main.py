@@ -6,18 +6,57 @@ import random
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+# import psycopg2 # Uncomment this line when you're ready to connect to PostgreSQL
 
 # Load environment variables from a .env file
 load_dotenv()
 
 app = FastAPI()
 
+# --- Database Connection Setup (Example) ---
+# DATABASE_URL = os.getenv("DATABASE_URL")
+
+# def get_db_connection():
+#     """Establishes a connection to the PostgreSQL database."""
+#     conn = psycopg2.connect(DATABASE_URL)
+#     return conn
+
+# def store_in_postgres(connection, source, data_to_store):
+#     """
+#     Stores the fetched data in the PostgreSQL database.
+#     This function is a placeholder and needs to be adapted to your database schema.
+#     """
+#     print(f"Storing {source} data in PostgreSQL...")
+#     # try:
+#     #     with connection.cursor() as cur:
+#     #         # Example: Create a table if it doesn't exist (you might do this once, separately)
+#     #         cur.execute("""
+#     #             CREATE TABLE IF NOT EXISTS api_data (
+#     #                 id SERIAL PRIMARY KEY,
+#     #                 source VARCHAR(50),
+#     #                 data JSONB,
+#     #                 fetched_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc')
+#     #             );
+#     #         """)
+#     #
+#     #         # Insert the new data
+#     #         query = "INSERT INTO api_data (source, data) VALUES (%s, %s)"
+#     #         cur.execute(query, (source, json.dumps(data_to_store)))
+#     #     connection.commit()
+#     #     print("Data successfully stored.")
+#     # except Exception as e:
+#     #     print(f"Error storing data: {e}")
+#     #     connection.rollback()
+#     # finally:
+#     #     connection.close()
+#     pass # Remove this 'pass' when you implement the database logic
+
+
 # --- CORS Middleware Setup ---
-# This is crucial for allowing the Next.js frontend (running on a different port)
-# to communicate with the Python backend.
+# This is crucial for allowing the Next.js frontend to communicate with the Python backend.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allows all origins for local development
+    allow_origins=["*"],  # Allows all origins for local development. For production, restrict this.
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
     allow_headers=["*"],  # Allows all headers
@@ -38,7 +77,7 @@ async def get_data(data_source: str):
     # --- 1. Pull Data ---
     # This is where you would use an API client (e.g., openbb-sdk, plaid-python)
     # to fetch live data from the service's API.
-    # TODO: Add logic here to securely get your API keys from environment variables
+    # You would use your API keys securely fetched from environment variables.
     # For example: api_key = os.getenv("OPENBB_API_KEY")
 
     data = {}
@@ -69,12 +108,8 @@ async def get_data(data_source: str):
     elif data_source == "openbb":
         print("Fetching rich data from OpenBB...")
         # --- Placeholder for fetching rich OpenBB data ---
-        # In a real scenario, you would use the openbb-sdk to get this data.
-        # e.g., chart_data = openbb.economy.cpi(start_date="2023-01-01")
-        # For now, we'll generate realistic mock data.
         today = datetime.now()
         chart_data = []
-        news_data = []
         price = 150
         for i in range(30):
             date = today - timedelta(days=i)
@@ -108,30 +143,18 @@ async def get_data(data_source: str):
         return {"error": "Invalid data source"}
 
     # --- 2. Store Data ---
-    # Here, you would connect to your PostgreSQL database and insert the
-    # data you just fetched. This creates a historical record.
-    # TODO: Add your database logic here. For example:
-    # with get_db_connection() as conn:
-    #     store_in_postgres(conn, data_source, data)
-    print(f"Data for {data_source} fetched. You would now store this in your PostgreSQL database.")
+    # Once you have your DATABASE_URL, you can uncomment these lines
+    # to connect to your PostgreSQL database and store the fetched data.
+    # print("Attempting to store data in PostgreSQL...")
+    # db_conn = get_db_connection()
+    # if db_conn:
+    #     store_in_postgres(db_conn, data_source, data)
 
 
     # --- 3. Return Data to Frontend ---
     # The data is returned as a JSON response to the Next.js app.
-    # The Next.js app will then send this data to the AI for analysis.
     return data
 
 @app.get("/")
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
-
-# Example of a helper function for database interaction
-# def store_in_postgres(connection, source, data_to_store):
-#     # Implement your database insertion logic here
-#     print(f"Storing {source} data in PostgreSQL...")
-#     # cursor = connection.cursor()
-#     # query = "INSERT INTO your_table (source, data, timestamp) VALUES (%s, %s, %s)"
-#     # cursor.execute(query, (source, json.dumps(data_to_store), datetime.now()))
-#     # connection.commit()
-#     # cursor.close()
-#     pass
