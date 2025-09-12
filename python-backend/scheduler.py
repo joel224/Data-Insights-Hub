@@ -49,11 +49,12 @@ def fetch_newsapi_news():
         url = f"https://newsapi.org/v2/top-headlines?category=business&language=en&apiKey={NEWS_API_KEY}&pageSize=10"
         response = requests.get(url)
         response.raise_for_status() 
-        articles = response.json().get("articles", [])
+        articles_json = response.json()
         
         print("🤖 [DEBUG] RAW NEWSAPI.ORG RESPONSE:")
-        print(json.dumps(response.json(), indent=2))
+        print(json.dumps(articles_json, indent=2))
         
+        articles = articles_json.get("articles", [])
         news_data = []
         for i, article in enumerate(articles):
             published_at_str = article.get('publishedAt')
@@ -296,6 +297,8 @@ def create_schema(connection):
         print(f"🔴 Error creating schema in scheduler: {e}")
         connection.rollback()
 
+
+    
 
     
 
