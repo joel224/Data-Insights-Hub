@@ -6,11 +6,11 @@ import psycopg2
 import sys
 
 # --- Database Connection Setup ---
-DATABASE_URL = os.getenv("DATABASE_URL")
-print(f"DEBUG: DATABASE_URL from scheduler.py: {DATABASE_URL}") # Debug print
-
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
+    DATABASE_URL = os.getenv("DATABASE_URL")
+    print(f"DEBUG: DATABASE_URL from scheduler.py: {DATABASE_URL}") # Debug print
+
     if not DATABASE_URL:
         print("🔴 DATABASE_URL is not set. Please check your environment variables in Railway.")
         return None
