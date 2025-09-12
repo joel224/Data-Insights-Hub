@@ -168,5 +168,23 @@ async def get_latest_data(data_source: str):
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
 
-app.mount("/", StaticFiles(directory="out", html=True), name="static")
+# --- Static Files Mounting ---
+
+# Determine the correct path to the 'out' directory.
+# When running locally from `python-backend`, it's one level up.
+# In the Docker container, it's in the same directory.
+current_dir = os.path.dirname(os.path.abspath(__file__))
+static_files_dir = os.path.join(current_dir, "out")
+
+# If 'out' is not in the current directory, check the parent directory.
+if not os.path.isdir(static_files_dir):
+    static_files_dir = os.path.join(current_dir, "..", "out")
+
+# Check if the directory exists before mounting.
+if os.path.isdir(static_files_dir):
+    app.mount("/", StaticFiles(directory=static_files_dir, html=True), name="static")
+    print(f"🟢 Serving static files from: {static_files_dir}")
+else:
+    print(f"🟡 Warning: Static files directory not found at '{static_files_dir}'. The frontend will not be served.")
+
 
