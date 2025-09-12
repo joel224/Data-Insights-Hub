@@ -1,3 +1,4 @@
+
 import os
 import json
 from datetime import datetime, timedelta
@@ -105,8 +106,9 @@ def fetch_and_store_data(source):
     # --- 2. STORE DATA ---
     db_conn = get_db_connection()
     if not db_conn:
-        print("🔴 Aborting. Failed to get database connection.")
-        return
+        print("🔴 Aborting scheduler. Failed to get database connection.")
+        # This will now cause the scheduler to stop running if the DB is not configured.
+        sys.exit(1)
 
     try:
         with db_conn.cursor() as cur:
@@ -133,7 +135,7 @@ if __name__ == "__main__":
         create_schema(conn)
         conn.close()
     else:
-        print("🔴 Cannot proceed without a database connection. Exiting.")
+        print("🔴 Cannot proceed without a database connection. Exiting scheduler.")
         sys.exit(1) # Exit with an error code
 
     # List of data sources to fetch

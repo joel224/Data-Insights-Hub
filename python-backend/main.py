@@ -1,3 +1,4 @@
+
 import os
 import json
 from datetime import datetime
@@ -67,7 +68,9 @@ async def get_latest_data(data_source: str):
 
     db_conn = get_db_connection()
     if not db_conn:
-        raise HTTPException(status_code=500, detail="Failed to connect to the database.")
+        # Return a 404 instead of a 500 if the database isn't configured.
+        # This points to a configuration issue, not a server crash.
+        raise HTTPException(status_code=404, detail="Database connection not configured. Please ensure DATABASE_URL is set in Railway.")
 
     try:
         with db_conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -82,7 +85,7 @@ async def get_latest_data(data_source: str):
             result = cur.fetchone()
 
             if not result:
-                raise HTTPException(status_code=404, detail=f"No data found for data source: {data_source}")
+                raise HTTPException(status_code=404, detail=f"No data found for data source: {data_source}. Run the scheduler to populate data.")
 
             return result['data']
 
