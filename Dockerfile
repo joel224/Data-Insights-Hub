@@ -2,35 +2,32 @@
 FROM node:20-slim AS build-stage
 WORKDIR /app
 
-# Install dependencies
+# Copy package manager files and install dependencies
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm install --legacy-peer-deps
 
-# Copy all source files
+# Copy the rest of the Next.js app source code
 COPY . .
 
-# Build the Next.js app
+# Build the Next.js app for static export
 RUN npm run build
 
-# --- Stage 2: Setup the Python backend and final image ---
+# --- Stage 2: Build the FastAPI backend ---
 FROM python:3.11-slim
 WORKDIR /app
 
-# Install Python dependencies first
+# Copy and install Python dependencies
 COPY python-backend/requirements.txt ./python-backend/requirements.txt
-RUN pip install --no-cache-dir -r python-backend/requirements.txt
+RUN pip install --no-cache-dir -r ./python-backend/requirements.txt
 
-# Copy the Python backend code
+# Copy the FastAPI backend code
 COPY python-backend/ ./python-backend/
 
-# Copy the Procfile for running multiple processes
-COPY Procfile ./
+# Copy the built Next.js frontend from the build stage
+COPY --from=build-stage /app/out ./out
 
-# Copy built Next.js app from the build stage
-COPY --from=build-stage /app/.next ./.next
-COPY --from=build-stage /app/public ./public
-COPY --from=build-stage /app/package.json ./package.json
-COPY --from=build-stage /app/next.config.ts ./next.config.ts
+# Set the working directory for the python app
+WORKDIR /app/python-backend
 
-# Define the command to run both services
-CMD ["honcho", "start"]
+# Define the command to run your application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
