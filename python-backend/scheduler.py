@@ -218,21 +218,32 @@ def generate_and_store_insights(source):
 
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
-        today_date = datetime.now().strftime("%Y-%m-%d")
-        prompt = f"You are a fintech analyst. Based on the following performance data for {today_date}, provide a short summary and 3 actionable recommendations to improve performance. Data:\n\n{json.dumps(raw_data, indent=2)}"
         
-        if IS_DEBUG:
-            print(f"🤖 [DEBUG] Sending this prompt to Gemini for {source}:")
-            print(prompt)
+        today_date = datetime.now().strftime("%Y-%m-%d")
+        
+        # --- Source-Specific Prompts ---
+        prompt = ""
+        if source == 'plaid':
+            prompt = f"You are a financial analyst. Based on the following news data for {today_date}, analyze the articles and provide a summary of key financial events and 3 actionable recommendations for an investor. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+        elif source == 'clearbit':
+            prompt = f"You are a marketing analyst. Based on the following business news for {today_date}, analyze the articles and provide a summary of market trends and 3 actionable recommendations for a sales or marketing team. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+        elif source == 'openbb':
+            prompt = f"You are a stock market analyst. Based on the following financial news for {today_date}, provide a short summary of market sentiment and 3 actionable recommendations for a retail investor. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+        else:
+            prompt = f"You are a fintech analyst. Based on the following performance data for {today_date}, provide a short summary and 3 actionable recommendations to improve performance. Data:\n\n{json.dumps(raw_data, indent=2)}"
+        
+        
+        print(f"🤖 [DEBUG] Sending this prompt to Gemini for {source}:")
+        print(prompt)
 
         print(f"🧠 [AI] Generating insights for {source}... (This may take a moment)")
         response = model.generate_content(prompt)
         insights = response.text
         print(f"💡 [AI] Insights generated for {source}.")
 
-        if IS_DEBUG:
-            print(f"🤖 [DEBUG] Received insights for {source}:")
-            print(insights)
+        
+        print(f"🤖 [DEBUG] Received insights for {source}:")
+        print(insights)
 
         # 3. Store the generated insights
         with db_conn.cursor() as cur:
@@ -303,23 +314,15 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-    data_sources_to_run = ["openbb", "plaid", "clearbit"]
+    # --- IMPORTANT ---
+    # To avoid API rate limits on the free tier, we only run ONE source at a time.
+    # Change the value in the list to 'plaid', 'clearbit', or 'openbb' to test each one.
+    data_sources_to_run = ["openbb"]
 
     for source in data_sources_to_run:
         fetch_and_store_data(source)
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
-
-    
-
-    
-
-    
-
-
-
-
-    
 
     
