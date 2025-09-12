@@ -1,4 +1,5 @@
 
+
 export type PlaidTransaction = {
   id: string;
   date: string;
@@ -19,6 +20,7 @@ export type ClearbitData = {
     annualRevenue: string;
     raised: string;
   };
+  news?: OpenBBNews[];
 };
 
 export type OpenBBNews = {
@@ -40,3 +42,5 @@ export type PipelineState<T> = {
   insights: string | null;
   error?: string | null;
 };
+
+    

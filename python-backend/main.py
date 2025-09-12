@@ -27,14 +27,6 @@ app.add_middleware(
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     DATABASE_URL = os.getenv("DATABASE_URL")
-    
-    # --- DEBUGGING ---
-    print("--- DEBUG: Printing all available environment variables ---")
-    print(json.dumps(dict(os.environ), indent=2))
-    print("--- END DEBUG ---")
-    
-    print(f"DEBUG: Attempting to connect with DATABASE_URL: {DATABASE_URL}")
-
     if not DATABASE_URL:
         print("🔴 DATABASE_URL is not set. Please check your environment variables in Railway.")
         return None
@@ -47,36 +39,6 @@ def get_db_connection():
     except Exception as e:
         print(f"🔴 An unexpected error occurred during database connection: {e}")
         return None
-
-# --- Gemini AI Setup ---
-def generate_insights_from_gemini(data_source: str, data: str):
-    """Generates insights by calling the Gemini API."""
-    GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-    if not GEMINI_API_KEY:
-        print("🔴 GEMINI_API_KEY is not set. Please check your environment variables in Railway.")
-        raise HTTPException(status_code=500, detail="AI API key is not configured.")
-
-    try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash-latest')
-
-        today_date = datetime.now().strftime("%Y-%m-%d")
-        
-        # Base prompt structure from user
-        prompt = f"You are a fintech analyst. Based on the following performance data for {today_date}, provide a short summary and 3 actionable recommendations to improve performance. Data:\n\n{data}"
-        
-        response = model.generate_content(prompt)
-        return response.text
-
-    except Exception as e:
-        print(f"🔴 Error calling Gemini API: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred during insight generation: {str(e)}")
-
-
-# --- API Models ---
-class InsightsRequest(BaseModel):
-    dataSource: str
-    data: str
 
 # --- API Endpoints ---
 
@@ -91,20 +53,21 @@ async def favicon():
 @app.get("/api/get-latest-data/{data_source}")
 async def get_latest_data(data_source: str):
     """
-    This endpoint fetches the most recent data for a given data source
-    from the PostgreSQL database.
+    This endpoint fetches the most recent data and pre-generated insights
+    for a given data source from the PostgreSQL database.
     """
-    print(f"Received request for latest '{data_source}' data from the database.")
+    print(f"Received request for latest '{data_source}' data and insights.")
     
     if data_source not in ["plaid", "clearbit", "openbb"]:
         raise HTTPException(status_code=400, detail="Invalid data source")
 
     db_conn = get_db_connection()
     if not db_conn:
-        raise HTTPException(status_code=404, detail="Database connection not configured. Please ensure DATABASE_URL is set in Railway.")
+        raise HTTPException(status_code=500, detail="Database connection not configured. Please ensure DATABASE_URL is set in Railway.")
 
     try:
         with db_conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # Fetch raw data
             cur.execute("""
                 SELECT data
                 FROM api_data
@@ -112,13 +75,25 @@ async def get_latest_data(data_source: str):
                 ORDER BY timestamp DESC
                 LIMIT 1;
             """, (data_source,))
-            
-            result = cur.fetchone()
+            data_result = cur.fetchone()
 
-            if not result:
-                raise HTTPException(status_code=404, detail=f"No data found for data source: {data_source}. Run the scheduler to populate data.")
+            # Fetch insights
+            cur.execute("""
+                SELECT insights
+                FROM daily_recommendations
+                WHERE data_source = %s
+                ORDER BY timestamp DESC
+                LIMIT 1;
+            """, (data_source,))
+            insights_result = cur.fetchone()
 
-            return result['data']
+            if not data_result or not insights_result:
+                raise HTTPException(status_code=404, detail=f"No data or insights found for {data_source}. Run the scheduler to populate data.")
+
+            return {
+                "data": data_result['data'],
+                "insights": insights_result['insights']
+            }
 
     except Exception as e:
         print(f"🔴 Error fetching data from database: {e}")
@@ -127,26 +102,11 @@ async def get_latest_data(data_source: str):
         if db_conn:
             db_conn.close()
 
-@app.post("/api/generate-insights")
-async def get_insights(request: InsightsRequest):
-    """
-    This endpoint generates AI insights by calling the Gemini API directly from Python.
-    """
-    print(f"Received request to generate REAL insights for '{request.dataSource}' using Gemini.")
-    
-    try:
-        insights = generate_insights_from_gemini(request.dataSource, request.data)
-        return {"insights": insights}
-    except HTTPException as e:
-        # Re-raise HTTPExceptions to return proper status codes to the client
-        raise e
-    except Exception as e:
-        print(f"🔴 Error in get_insights endpoint: {e}")
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
-
 
 @app.get("/api")
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
 
 app.mount("/", StaticFiles(directory="out", html=True), name="static")
+
+    

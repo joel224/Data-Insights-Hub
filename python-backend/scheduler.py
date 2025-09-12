@@ -6,6 +6,7 @@ import random
 import psycopg2
 import sys
 import requests
+import google.generativeai as genai
 
 # --- Database Connection Setup ---
 def get_db_connection():
@@ -38,8 +39,16 @@ def create_schema(connection):
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS api_data (
                     id SERIAL PRIMARY KEY,
-                    api_name VARCHAR(50) NOT NULL,
+                    api_name VARCHAR(50) NOT NULL UNIQUE,
                     data JSONB,
+                    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS daily_recommendations (
+                    id SERIAL PRIMARY KEY,
+                    data_source VARCHAR(50) NOT NULL UNIQUE,
+                    insights TEXT,
                     timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
                 );
             """)
@@ -55,11 +64,9 @@ def fetch_live_news():
     NEWS_API_KEY = os.getenv("NEWS_API_KEY")
     if not NEWS_API_KEY:
         print("🟡 NEWS_API_KEY not set. Skipping live news fetch.")
-        # Return an empty list or a message if the key is not set
         return [{"id": "1", "title": "Live News Fetching Disabled: NEWS_API_KEY is not set.", "url": "#", "source": "System", "published": "Now"}]
 
     try:
-        # Fetching top business headlines from the US
         url = f"https://newsapi.org/v2/top-headlines?category=business&language=en&apiKey={NEWS_API_KEY}&pageSize=10"
         response = requests.get(url)
         response.raise_for_status() 
@@ -98,48 +105,13 @@ def fetch_live_news():
 
 def fetch_and_store_data(source):
     """
-    Fetches data from the specified source and stores it in the PostgreSQL database.
-    This function now only contains real API calls or placeholders for them.
+    Fetches data for the specified source and stores it in the PostgreSQL database.
     """
-    print(f"--- Running pipeline for: {source} ---")
+    print(f"--- Running data fetch pipeline for: {source} ---")
     
-    data = {}
+    data = {"news": fetch_live_news()}
     
-    # --- 1. PULL DATA ---
-    if source == "plaid":
-        print("Fetching data from Plaid...")
-        # To implement this, you would need to use the Plaid Python client.
-        # This requires PLAID_CLIENT_ID, PLAID_SECRET, and an ACCESS_TOKEN.
-        # Example:
-        # plaid_client = plaid.Client(client_id=PLAID_CLIENT_ID, secret=PLAID_SECRET, environment='sandbox')
-        # response = plaid_client.Transactions.get(access_token=ACCESS_TOKEN, start_date='2024-01-01', end_date='2024-02-01')
-        # data = response['transactions']
-        print("🟡 Plaid data fetching is not implemented. Requires API keys.")
-        data = [] # Store empty data if not implemented
-
-    elif source == "clearbit":
-        print("Fetching data from Clearbit...")
-        # To implement this, you would use the Clearbit API.
-        # This requires a CLEARBIT_API_KEY.
-        # Example:
-        # headers = {'Authorization': f'Bearer {CLEARBIT_API_KEY}'}
-        # response = requests.get('https://company.clearbit.com/v2/companies/find?domain=google.com', headers=headers)
-        # data = response.json()
-        print("🟡 Clearbit data fetching is not implemented. Requires API keys.")
-        data = {} # Store empty data if not implemented
-
-    elif source == "openbb":
-        print("Fetching real news for OpenBB...")
-        # This uses the NewsAPI as a proxy for financial news.
-        live_news = fetch_live_news()
-        data = {"news": live_news} # The data now only contains real news
-
-    else:
-        print(f"🔴 Invalid data source specified: {source}")
-        return
-
-    # --- 2. STORE DATA ---
-    if not data:
+    if not data or not data.get("news"):
         print(f"🟡 No data fetched for {source}. Skipping database storage.")
         return
 
@@ -150,9 +122,13 @@ def fetch_and_store_data(source):
 
     try:
         with db_conn.cursor() as cur:
-            # Check if data for this source already exists and delete it to store the new data
-            cur.execute("DELETE FROM api_data WHERE api_name = %s", (source,))
-            query = "INSERT INTO api_data (api_name, data) VALUES (%s, %s)"
+            query = """
+                INSERT INTO api_data (api_name, data, timestamp)
+                VALUES (%s, %s, NOW() AT TIME ZONE 'utc')
+                ON CONFLICT (api_name) DO UPDATE SET
+                    data = EXCLUDED.data,
+                    timestamp = EXCLUDED.timestamp;
+            """
             cur.execute(query, (source, json.dumps(data)))
         db_conn.commit()
         print(f"🟢 Data for {source} successfully stored in PostgreSQL.")
@@ -163,11 +139,71 @@ def fetch_and_store_data(source):
         if db_conn:
             db_conn.close()
     
-    print(f"--- Pipeline finished for: {source} ---")
+    print(f"--- Data fetch pipeline finished for: {source} ---")
+
+
+def generate_and_store_insights(source):
+    """
+    Generates insights using Gemini for a given data source and stores them.
+    """
+    print(f"--- Running insight generation pipeline for: {source} ---")
+    db_conn = get_db_connection()
+    if not db_conn:
+        print(f"🔴 Aborting insight generation for {source}. Failed to get database connection.")
+        return
+
+    try:
+        # 1. Fetch the latest raw data
+        raw_data = None
+        with db_conn.cursor() as cur:
+            cur.execute("SELECT data FROM api_data WHERE api_name = %s ORDER BY timestamp DESC LIMIT 1", (source,))
+            result = cur.fetchone()
+            if result:
+                raw_data = result[0]
+        
+        if not raw_data:
+            print(f"🟡 No raw data found for {source}. Skipping insight generation.")
+            return
+
+        # 2. Generate insights with Gemini
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        if not GEMINI_API_KEY:
+            print("🔴 GEMINI_API_KEY not set. Cannot generate insights.")
+            return
+
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash-latest')
+        today_date = datetime.now().strftime("%Y-%m-%d")
+        prompt = f"You are a fintech analyst. Based on the following performance data for {today_date}, provide a short summary and 3 actionable recommendations to improve performance. Data:\n\n{json.dumps(raw_data, indent=2)}"
+        
+        response = model.generate_content(prompt)
+        insights = response.text
+
+        # 3. Store the generated insights
+        with db_conn.cursor() as cur:
+            query = """
+                INSERT INTO daily_recommendations (data_source, insights, timestamp)
+                VALUES (%s, %s, NOW() AT TIME ZONE 'utc')
+                ON CONFLICT (data_source) DO UPDATE SET
+                    insights = EXCLUDED.insights,
+                    timestamp = EXCLUDED.timestamp;
+            """
+            cur.execute(query, (source, insights))
+        db_conn.commit()
+        print(f"🟢 AI insights for {source} successfully generated and stored.")
+
+    except Exception as e:
+        print(f"🔴 Error during insight generation/storage for {source}: {e}")
+        db_conn.rollback()
+    finally:
+        if db_conn:
+            db_conn.close()
+    
+    print(f"--- Insight generation pipeline finished for: {source} ---")
 
 
 if __name__ == "__main__":
-    print("🚀 Starting scheduled data fetch job...")
+    print("🚀 Starting scheduled data job...")
 
     conn = get_db_connection()
     if conn:
@@ -181,5 +217,8 @@ if __name__ == "__main__":
 
     for source in data_sources_to_run:
         fetch_and_store_data(source)
+        generate_and_store_insights(source)
     
-    print("✅ Scheduled data fetch job finished successfully.")
+    print("✅ Scheduled data job finished successfully.")
+
+    
