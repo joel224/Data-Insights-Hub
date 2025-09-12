@@ -65,7 +65,7 @@ def generate_insights_from_gemini(data_source: str, data: str):
         elif data_source == "clearbit":
              prompt = f"You are a business strategy analyst. Based on the following company performance data, provide a short summary and 3 actionable recommendations to improve the company's business performance and market position. Data:\n\n{data}"
         elif data_source == "openbb":
-             prompt = f"You are a stock market analyst. Based on the following stock market performance data (including chart data, news, and performance metrics), provide a short summary and 3 actionable investment recommendations for a potential investor. Data:\n\n{data}"
+             prompt = f"You are a stock market analyst. Based on the following financial news, provide a short summary and 3 actionable investment recommendations for a potential investor. Data:\n\n{data}"
         else:
             prompt = prompt_template
 
@@ -154,3 +154,4 @@ def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
 
 app.mount("/", StaticFiles(directory="out", html=True), name="static")
+
