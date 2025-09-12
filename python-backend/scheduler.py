@@ -241,7 +241,8 @@ def generate_and_store_insights(source):
 
     except Exception as e:
         print(f"🔴 [AI] Error during insight generation/storage for {source}: {e}")
-        db_conn.rollback()
+        if db_conn:
+            db_conn.rollback()
     finally:
         if db_conn:
             db_conn.close()
@@ -256,6 +257,9 @@ if __name__ == "__main__":
     if not conn:
         print("🔴 Cannot proceed without a database connection. Exiting scheduler.")
         sys.exit(1)
+    
+    # We must create the schema here on every run to be safe.
+    create_schema(conn)
     conn.close()
 
 
@@ -267,6 +271,34 @@ if __name__ == "__main__":
     
     print("✅ Scheduled data job finished successfully.")
 
+def create_schema(connection):
+    """Creates the necessary tables if they don't exist."""
+    if not connection:
+        print("🔴 Cannot create schema, no database connection.")
+        return
     
+    try:
+        with connection.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS api_data (
+                    id SERIAL PRIMARY KEY,
+                    api_name VARCHAR(50) NOT NULL UNIQUE,
+                    data JSONB,
+                    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS daily_recommendations (
+                    id SERIAL PRIMARY KEY,
+                    data_source VARCHAR(50) NOT NULL UNIQUE,
+                    insights TEXT,
+                    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+                );
+            """)
+        connection.commit()
+        print("🟢 Schema checked/created successfully in scheduler.")
+    except Exception as e:
+        print(f"🔴 Error creating schema in scheduler: {e}")
+        connection.rollback()
 
     
