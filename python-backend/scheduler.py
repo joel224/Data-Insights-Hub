@@ -264,3 +264,5 @@ if __name__ == "__main__":
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
+
+    
