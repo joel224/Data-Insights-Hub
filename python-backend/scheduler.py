@@ -183,4 +183,3 @@ if __name__ == "__main__":
         fetch_and_store_data(source)
     
     print("✅ Scheduled data fetch job finished successfully.")
-

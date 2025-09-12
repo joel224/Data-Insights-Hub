@@ -27,6 +27,12 @@ app.add_middleware(
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     DATABASE_URL = os.getenv("DATABASE_URL")
+    
+    # --- DEBUGGING ---
+    print("--- DEBUG: Printing all available environment variables ---")
+    print(json.dumps(dict(os.environ), indent=2))
+    print("--- END DEBUG ---")
+    
     print(f"DEBUG: Attempting to connect with DATABASE_URL: {DATABASE_URL}")
 
     if not DATABASE_URL:
@@ -56,19 +62,9 @@ def generate_insights_from_gemini(data_source: str, data: str):
 
         today_date = datetime.now().strftime("%Y-%m-%d")
         
-        # Base prompt structure
-        prompt_template = f"You are a fintech analyst. Based on the following performance data for {today_date}, provide a short summary and 3 actionable recommendations to improve performance. Data:\n\n{data}"
+        # Base prompt structure from user
+        prompt = f"You are a fintech analyst. Based on the following performance data for {today_date}, provide a short summary and 3 actionable recommendations to improve performance. Data:\n\n{data}"
         
-        # Specific prompts for each data source
-        if data_source == "plaid":
-            prompt = f"You are a fintech analyst specializing in personal finance. Based on the following financial transaction data, provide a short summary and 3 actionable recommendations to improve the user's financial performance. Data:\n\n{data}"
-        elif data_source == "clearbit":
-             prompt = f"You are a business strategy analyst. Based on the following company performance data, provide a short summary and 3 actionable recommendations to improve the company's business performance and market position. Data:\n\n{data}"
-        elif data_source == "openbb":
-             prompt = f"You are a stock market analyst. Based on the following financial news, provide a short summary and 3 actionable investment recommendations for a potential investor. Data:\n\n{data}"
-        else:
-            prompt = prompt_template
-
         response = model.generate_content(prompt)
         return response.text
 
@@ -154,4 +150,3 @@ def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
 
 app.mount("/", StaticFiles(directory="out", html=True), name="static")
-
