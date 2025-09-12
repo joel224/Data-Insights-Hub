@@ -9,34 +9,40 @@ import requests
 import google.generativeai as genai
 from openbb import obb
 
+# --- Configuration ---
+IS_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+
 # --- Database Connection Setup ---
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     DATABASE_URL = os.getenv("DATABASE_URL")
-    print(f"DEBUG: Attempting to connect with DATABASE_URL from scheduler.py")
+    print("⚙️ [DB] Attempting to connect to the database...")
 
     if not DATABASE_URL:
-        print("🔴 DATABASE_URL is not set. Please check your environment variables in Railway.")
+        print("🔴 [DB] DATABASE_URL is not set. Please check your environment variables in Railway.")
         return None
     try:
         conn = psycopg2.connect(DATABASE_URL)
+        print("🟢 [DB] Database connection successful.")
         return conn
     except psycopg2.OperationalError as e:
-        print(f"🔴 Could not connect to the database: {e}")
+        print(f"🔴 [DB] Could not connect to the database: {e}")
         return None
     except Exception as e:
-        print(f"🔴 An unexpected error occurred during database connection: {e}")
+        print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
 
 
 def fetch_newsapi_news():
     """Fetches live general business news from NewsAPI.org."""
     NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+    print("🔍 [NewsAPI] Checking for NEWS_API_KEY...")
     if not NEWS_API_KEY:
-        print("🟡 NEWS_API_KEY not set. Skipping NewsAPI fetch.")
+        print("🟡 [NewsAPI] NEWS_API_KEY not set. Skipping fetch.")
         return [{"id": "1", "title": "Live News Fetching Disabled: NEWS_API_KEY is not set.", "url": "#", "source": "System", "published": "Now"}]
 
     try:
+        print("📡 [NewsAPI] Fetching data from newsapi.org...")
         url = f"https://newsapi.org/v2/top-headlines?category=business&language=en&apiKey={NEWS_API_KEY}&pageSize=10"
         response = requests.get(url)
         response.raise_for_status() 
@@ -66,23 +72,25 @@ def fetch_newsapi_news():
                 "source": article.get("source", {}).get("name", "Unknown"),
                 "published": published
             })
-        print(f"🟢 Successfully fetched {len(news_data)} news articles from NewsAPI.")
+        print(f"🟢 [NewsAPI] Successfully fetched {len(news_data)} articles.")
         return news_data
     except requests.exceptions.RequestException as e:
-        print(f"🔴 Error fetching live news from NewsAPI: {e}")
+        print(f"🔴 [NewsAPI] Error fetching live news: {e}")
         return [{"id": "1", "title": "Failed to fetch live news from NewsAPI.", "url": "#", "source": "System Error", "published": "Now"}]
 
 def fetch_openbb_news():
     """Fetches financial news using the OpenBB SDK."""
     OPENBB_API_KEY = os.getenv("OPENBB_API_KEY")
+    print("🔍 [OpenBB] Checking for OPENBB_API_KEY...")
     if not OPENBB_API_KEY:
-        print("🟡 OPENBB_API_KEY not set. Skipping OpenBB news fetch.")
+        print("🟡 [OpenBB] OPENBB_API_KEY not set. Skipping fetch.")
         return [{"id": "1", "title": "OpenBB News Fetching Disabled: OPENBB_API_KEY is not set.", "url": "#", "source": "System", "published": "Now"}]
     
     try:
+        print("🔐 [OpenBB] Authenticating with OpenBB PAT...")
         obb.account.login(pat=OPENBB_API_KEY)
-        print("🟢 Successfully authenticated with OpenBB.")
-        # Fetching world news, which is a good proxy for general market news
+        print("🟢 [OpenBB] Successfully authenticated with OpenBB.")
+        print("📡 [OpenBB] Fetching world news...")
         res = obb.news.world(limit=10)
         articles = res.to_dicts()
 
@@ -109,10 +117,10 @@ def fetch_openbb_news():
                 "source": article.get("publisher", {}).get("name", "Unknown"),
                 "published": published
             })
-        print(f"🟢 Successfully fetched {len(news_data)} news articles from OpenBB.")
+        print(f"🟢 [OpenBB] Successfully fetched {len(news_data)} news articles.")
         return news_data
     except Exception as e:
-        print(f"🔴 Error fetching news from OpenBB: {e}")
+        print(f"🔴 [OpenBB] Error fetching news: {e}")
         return [{"id": "1", "title": "Failed to fetch live news from OpenBB.", "url": "#", "source": "System Error", "published": "Now"}]
 
 
@@ -120,7 +128,7 @@ def fetch_and_store_data(source):
     """
     Fetches data for the specified source and stores it in the PostgreSQL database.
     """
-    print(f"--- Running data fetch pipeline for: {source} ---")
+    print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
     if source == 'openbb':
@@ -129,16 +137,21 @@ def fetch_and_store_data(source):
         data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
-        print(f"🟡 No data fetched for {source}. Skipping database storage.")
+        print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
         return
+
+    if IS_DEBUG:
+        print(f"📋 [DEBUG] Fetched data for {source}:")
+        print(json.dumps(data, indent=2))
 
     db_conn = get_db_connection()
     if not db_conn:
-        print(f"🔴 Aborting storage for {source}. Failed to get database connection.")
+        print(f"🔴 [DB] Aborting storage for {source}. Failed to get database connection.")
         return
 
     try:
         with db_conn.cursor() as cur:
+            print(f"💾 [DB] Storing data for '{source}'...")
             query = """
                 INSERT INTO api_data (api_name, data, timestamp)
                 VALUES (%s, %s, NOW() AT TIME ZONE 'utc')
@@ -148,56 +161,71 @@ def fetch_and_store_data(source):
             """
             cur.execute(query, (source, json.dumps(data)))
         db_conn.commit()
-        print(f"🟢 Data for {source} successfully stored in PostgreSQL.")
+        print(f"🟢 [DB] Data for {source} successfully stored in PostgreSQL.")
     except Exception as e:
-        print(f"🔴 Error storing data for {source}: {e}")
+        print(f"🔴 [DB] Error storing data for {source}: {e}")
         db_conn.rollback()
     finally:
         if db_conn:
             db_conn.close()
     
-    print(f"--- Data fetch pipeline finished for: {source} ---")
+    print(f"--- ✅ [Pipeline] Data fetch finished for: {source} ---")
 
 
 def generate_and_store_insights(source):
     """
     Generates insights using Gemini for a given data source and stores them.
     """
-    print(f"--- Running insight generation pipeline for: {source} ---")
+    print(f"--- ⏯️ [AI] Starting insight generation for: {source} ---")
     db_conn = get_db_connection()
     if not db_conn:
-        print(f"🔴 Aborting insight generation for {source}. Failed to get database connection.")
+        print(f"🔴 [DB] Aborting insight generation for {source}. Failed to get database connection.")
         return
 
     try:
         # 1. Fetch the latest raw data
         raw_data = None
         with db_conn.cursor() as cur:
+            print(f"🔍 [DB] Fetching latest raw data for '{source}' to generate insights...")
             cur.execute("SELECT data FROM api_data WHERE api_name = %s ORDER BY timestamp DESC LIMIT 1", (source,))
             result = cur.fetchone()
             if result:
                 raw_data = result[0]
+                print(f"🟢 [DB] Found raw data for '{source}'.")
         
         if not raw_data:
-            print(f"🟡 No raw data found for {source}. Skipping insight generation.")
+            print(f"🟡 [AI] No raw data found for {source}. Skipping insight generation.")
             return
 
         # 2. Generate insights with Gemini
         GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        print("🔍 [AI] Checking for GEMINI_API_KEY...")
         if not GEMINI_API_KEY:
-            print("🔴 GEMINI_API_KEY not set. Cannot generate insights.")
+            print("🔴 [AI] GEMINI_API_KEY not set. Cannot generate insights.")
             return
+        print("🟢 [AI] GEMINI_API_KEY found.")
 
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
         today_date = datetime.now().strftime("%Y-%m-%d")
         prompt = f"You are a fintech analyst. Based on the following performance data for {today_date}, provide a short summary and 3 actionable recommendations to improve performance. Data:\n\n{json.dumps(raw_data, indent=2)}"
         
+        if IS_DEBUG:
+            print(f"🤖 [DEBUG] Sending this prompt to Gemini for {source}:")
+            print(prompt)
+
+        print(f"🧠 [AI] Generating insights for {source}... (This may take a moment)")
         response = model.generate_content(prompt)
         insights = response.text
+        print(f"💡 [AI] Insights generated for {source}.")
+
+        if IS_DEBUG:
+            print(f"🤖 [DEBUG] Received insights for {source}:")
+            print(insights)
 
         # 3. Store the generated insights
         with db_conn.cursor() as cur:
+            print(f"💾 [DB] Storing AI insights for '{source}'...")
             query = """
                 INSERT INTO daily_recommendations (data_source, insights, timestamp)
                 VALUES (%s, %s, NOW() AT TIME ZONE 'utc')
@@ -207,23 +235,21 @@ def generate_and_store_insights(source):
             """
             cur.execute(query, (source, insights))
         db_conn.commit()
-        print(f"🟢 AI insights for {source} successfully generated and stored.")
+        print(f"🟢 [DB] AI insights for {source} successfully generated and stored.")
 
     except Exception as e:
-        print(f"🔴 Error during insight generation/storage for {source}: {e}")
+        print(f"🔴 [AI] Error during insight generation/storage for {source}: {e}")
         db_conn.rollback()
     finally:
         if db_conn:
             db_conn.close()
     
-    print(f"--- Insight generation pipeline finished for: {source} ---")
+    print(f"--- ✅ [AI] Insight generation finished for: {source} ---")
 
 
 if __name__ == "__main__":
     print("🚀 Starting scheduled data job...")
 
-    # Schema creation is now handled by main.py on startup.
-    # We just need to check for a connection here before proceeding.
     conn = get_db_connection()
     if not conn:
         print("🔴 Cannot proceed without a database connection. Exiting scheduler.")
@@ -238,5 +264,3 @@ if __name__ == "__main__":
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
-
-    

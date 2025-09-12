@@ -119,6 +119,7 @@ async def get_latest_data(data_source: str):
     try:
         with db_conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Fetch raw data
+            print(f"🔍 [DB] Fetching raw data for '{data_source}'...")
             cur.execute("""
                 SELECT data
                 FROM api_data
@@ -127,8 +128,11 @@ async def get_latest_data(data_source: str):
                 LIMIT 1;
             """, (data_source,))
             data_result = cur.fetchone()
+            print(f"✅ [DB] Raw data result: {'Found' if data_result else 'Not Found'}")
+
 
             # Fetch insights
+            print(f"🔍 [DB] Fetching insights for '{data_source}'...")
             cur.execute("""
                 SELECT insights
                 FROM daily_recommendations
@@ -137,14 +141,19 @@ async def get_latest_data(data_source: str):
                 LIMIT 1;
             """, (data_source,))
             insights_result = cur.fetchone()
+            print(f"✅ [DB] Insights result: {'Found' if insights_result else 'Not Found'}")
+
 
             if not data_result or not insights_result:
                 raise HTTPException(status_code=404, detail=f"No data or insights found for {data_source}. Run the scheduler to populate data.")
 
-            return {
+            response_data = {
                 "data": data_result['data'],
                 "insights": insights_result['insights']
             }
+
+            print(f"📦 [API] Sending response for '{data_source}'.")
+            return response_data
 
     except Exception as e:
         print(f"🔴 Error fetching data from database: {e}")
@@ -159,5 +168,3 @@ def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
 
 app.mount("/", StaticFiles(directory="out", html=True), name="static")
-
-    
