@@ -14,14 +14,13 @@ import { OpenbbDataView } from './OpenbbDataView';
 import { InsightsCard } from './InsightsCard';
 import { InsightsSkeleton, PlaidDataSkeleton, ClearbitDataSkeleton, OpenbbDataSkeleton } from './LoadingStates';
 
-// In a real deployment, this would be an absolute URL to the deployed backend.
-// For the single-container setup, we use a relative path.
-const API_BASE_URL = '/api';
+// This should be replaced with the private URL of your Python API service from Railway
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 async function runPipeline(dataSource: DataSource): Promise<{ data: any; insights?: string; error?: string }> {
   try {
     // 1. Fetch the latest data from the Python backend's existing endpoint
-    const dataResponse = await fetch(`${API_BASE_URL}/get-latest-data/${dataSource}`, { cache: 'no-store' });
+    const dataResponse = await fetch(`${API_BASE_URL}/api/get-latest-data/${dataSource}`, { cache: 'no-store' });
     if (!dataResponse.ok) {
       const errorText = await dataResponse.text();
       throw new Error(`Failed to fetch data for ${dataSource}: ${errorText}`);
@@ -29,7 +28,7 @@ async function runPipeline(dataSource: DataSource): Promise<{ data: any; insight
     const data = await dataResponse.json();
 
     // 2. Generate insights by calling the new Python endpoint
-    const insightsResponse = await fetch(`${API_BASE_URL}/generate-insights`, {
+    const insightsResponse = await fetch(`${API_BASE_URL}/api/generate-insights`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
