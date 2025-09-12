@@ -11,9 +11,13 @@ load_dotenv()
 
 # --- Database Connection Setup ---
 DATABASE_URL = os.getenv("DATABASE_URL")
+print(f"DEBUG: DATABASE_URL from scheduler.py: {DATABASE_URL}") # Debug print
 
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
+    if not DATABASE_URL:
+        print("🔴 DATABASE_URL is not set. Please check your .env file.")
+        return None
     try:
         conn = psycopg2.connect(DATABASE_URL)
         return conn
