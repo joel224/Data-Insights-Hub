@@ -43,20 +43,20 @@ def store_in_postgres(connection, source, data_to_store):
     print(f"Storing {source} data in PostgreSQL...")
     try:
         with connection.cursor() as cur:
-            # Create a table if it doesn't exist.
-            # In a real app, you would run this once using a migration tool.
+            # This SQL statement should match your existing table structure.
+            # Using the schema you provided: (id, api_name, data, timestamp)
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS api_data (
                     id SERIAL PRIMARY KEY,
-                    source VARCHAR(50),
+                    api_name VARCHAR(50),
                     data JSONB,
                     fetched_at TIMESTAMP WITH TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc')
                 );
             """)
 
-            # Insert the new data
+            # Use "api_name" to match your table schema.
+            query = "INSERT INTO api_data (api_name, data) VALUES (%s, %s)"
             # The %s placeholders are automatically and safely handled by psycopg2
-            query = "INSERT INTO api_data (source, data) VALUES (%s, %s)"
             cur.execute(query, (source, json.dumps(data_to_store)))
         
         # Commit the transaction to make the changes permanent
@@ -97,12 +97,9 @@ async def get_data(data_source: str):
     data = {}
     
     # --- 1. PULL DATA (The "What" and "From Where") ---
-    # This is where you would use an API client (e.g., openbb-sdk, plaid-python)
-    # to fetch live data from the service's API.
-    # API keys should be stored in your .env file and loaded securely.
-    # For example: api_key = os.getenv("OPENBB_API_KEY")
-    #
     # This block simulates fetching data from an external API.
+    # In a real app, you would use an API client (e.g., openbb-sdk, plaid-python)
+    # to fetch live data from the service's API using API keys from your .env file.
     
     if data_source == "plaid":
         print("Fetching data from Plaid...")
@@ -177,10 +174,10 @@ async def get_data(data_source: str):
 
     # --- 2. STORE DATA (The "Secure Vault") ---
     # After fetching the data, store it in your PostgreSQL database.
-    # The get_db_connection function handles the connection.
     print("Attempting to store data in PostgreSQL...")
     db_conn = get_db_connection()
     if db_conn:
+        # The 'source' parameter here will be used as the 'api_name' in the database.
         store_in_postgres(db_conn, data_source, data)
     else:
         print("🔴 Skipping database storage because connection failed.")
@@ -195,3 +192,6 @@ async def get_data(data_source: str):
 def read_root():
     return {"message": "Data Insights Hub Python backend is running."}
 
+
+
+    
