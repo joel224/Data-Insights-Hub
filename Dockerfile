@@ -13,43 +13,44 @@ COPY . .
 RUN npm run build
 
 
-# --- Stage 2: Setup the final production image with Python and Node.js ---
+# --- Stage 2: Setup the final production image with both Python and Node.js ---
 FROM python:3.11-slim
 WORKDIR /app
 
-# --- Install Node.js using official NodeSource script (much more reliable than nvm) ---
-# See: https://github.com/nodesource/distributions
+# --- Install Node.js ---
+# This installs Node.js and npm into our Python image, creating a hybrid image.
 RUN apt-get update && \
     apt-get install -y ca-certificates curl gnupg && \
     mkdir -p /etc/apt/keyrings && \
     curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg && \
-    NODE_MAJOR=20 && \
-    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_$NODE_MAJOR.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" | tee /etc/apt/sources.list.d/nodesource.list && \
     apt-get update && \
-    apt-get install nodejs -y && \
-    # Clean up to keep the image small
-    apt-get purge -y ca-certificates curl gnupg && \
-    apt-get autoremove -y && \
+    apt-get install -y nodejs && \
+    # Clean up apt caches to keep image size down
     rm -rf /var/lib/apt/lists/*
 
 # Set the PORT environment variable for Railway
 # The `web` process in the Procfile will use this.
 ENV PORT=3000
 
-# Copy and install Python dependencies from the python-backend directory
+# --- Install Python Dependencies ---
 COPY python-backend/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
+# --- Copy Application Code ---
 # Copy the Python backend code
 COPY python-backend/ ./python-backend/
 
 # Copy the Procfile for honcho
 COPY Procfile ./Procfile
 
-# Copy the built Next.js application from the build stage
+# --- Copy Built Frontend and Node Dependencies ---
 COPY --from=build-stage /app/.next ./.next
 COPY --from=build-stage /app/package.json ./package.json
 COPY --from=build-stage /app/next.config.ts ./next.config.ts
+# Copy node_modules, which are required for `npm run start`
+COPY --from=build-stage /app/node_modules ./node_modules
+
 
 # Define the command to run BOTH applications using honcho
 # Honcho will read the Procfile and start the web and api services.
