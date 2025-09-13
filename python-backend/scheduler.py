@@ -21,7 +21,7 @@ def get_db_connection():
     print("⚙️ [DB] Attempting to connect to the database...")
 
     if not DATABASE_URL:
-        print("🔴 [DB] DATABASE_URL is not set. Please check your environment variables in Railway.")
+        print("🔴 [DB] DATABASE_URL is not set. This should be hardcoded.")
         return None
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -37,17 +37,16 @@ def get_db_connection():
 
 def fetch_marketstack_news():
     """Fetches general market news from marketstack.com."""
-    print("🤖 [DEBUG] Fetching data for 'openbb' using fetch_marketstack_news()")
+    print("🤖 [DEBUG] Fetching data using fetch_marketstack_news()")
     
     MARKETSTACK_API_KEY = os.getenv("MARKETSTACK_API_KEY")
-    print("🔍 [MarketStack] Checking for MARKETSTACK_API_KEY...")
     if not MARKETSTACK_API_KEY:
+        # This check is redundant due to the main check, but good for safety
         print("🔴 [MarketStack] MARKETSTACK_API_KEY is not set. Skipping fetch.")
         return []
 
     try:
         print("📡 [MarketStack] Fetching news from marketstack.com...")
-        # We are using the "general" news endpoint. You can add tickers for more specific news.
         url = f"http://api.marketstack.com/v1/news?access_key={MARKETSTACK_API_KEY}&limit=10&languages=en"
         response = requests.get(url)
         response.raise_for_status() 
@@ -90,11 +89,11 @@ def fetch_marketstack_news():
 
 def fetch_newsapi_news():
     """Fetches live general business news from NewsAPI.org."""
-    NEWS_API_KEY = os.getenv("NEWS_API_KEY", "37dd8d06f5674c7c8bed13c168555c4d")
-    print("🔍 [NewsAPI] Checking for NEWS_API_KEY...")
+    NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+    # This check is redundant due to the main check, but good for safety
     if not NEWS_API_KEY:
         print("🟡 [NewsAPI] NEWS_API_KEY not set. Skipping fetch.")
-        return [{"id": "1", "title": "Live News Fetching Disabled: NEWS_API_KEY is not set.", "url": "#", "source": "System", "published": "Now"}]
+        return []
 
     try:
         print("📡 [NewsAPI] Fetching data from newsapi.org...")
@@ -145,10 +144,11 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    if source == 'openbb':
+    if source == 'plaid':
         data = {"news": fetch_marketstack_news()}
-    elif source in ['plaid', 'clearbit']:
-        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
+    elif source == 'openbb':
+        data = {"news": fetch_marketstack_news()}
+    elif source == 'clearbit':
         data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
@@ -208,14 +208,8 @@ def generate_and_store_insights(source):
             print(f"🟡 [AI] No raw data found for {source}. Skipping insight generation.")
             return
 
-        # 2. Generate insights with Gemini
-        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAp5W52XGhg2VYQucmZH4KUByEGjG6ej4g")
-        print("🔍 [AI] Checking for GEMINI_API_KEY...")
-        if not GEMINI_API_KEY:
-            print("🔴 [AI] GEMINI_API_KEY not set. Cannot generate insights.")
-            return
-        print("🟢 [AI] GEMINI_API_KEY found.")
-
+        # 2. Generate insights with Gemini (API key checked at start)
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
         
@@ -301,7 +295,19 @@ def create_schema(connection):
 if __name__ == "__main__":
     print("🚀 Starting scheduled data job...")
 
-    # First, ensure the schema exists.
+    # --- Upfront API Key Check ---
+    print("🔍 [Pre-flight] Checking for required API keys...")
+    required_keys = ["GEMINI_API_KEY", "MARKETSTACK_API_KEY", "NEWS_API_KEY"]
+    missing_keys = [key for key in required_keys if not os.getenv(key)]
+
+    if missing_keys:
+        print(f"🔴 [FATAL] The following required API keys are missing in your .env file: {', '.join(missing_keys)}")
+        print("Please add them to your .env file and try again.")
+        sys.exit(1)
+    else:
+        print("🟢 [Pre-flight] All required API keys are present.")
+
+    # --- Schema Check ---
     db_conn = get_db_connection()
     if db_conn:
         create_schema(db_conn)
@@ -310,7 +316,7 @@ if __name__ == "__main__":
         print("🔴 [Scheduler] Database connection failed. Cannot verify schema or run jobs.")
         sys.exit(1)
 
-
+    # --- Run Data Pipelines ---
     data_sources_to_run = ["plaid", "clearbit", "openbb"]
 
     for source in data_sources_to_run:
@@ -318,5 +324,7 @@ if __name__ == "__main__":
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
+
+    
 
     
