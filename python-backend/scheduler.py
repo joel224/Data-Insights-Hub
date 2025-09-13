@@ -331,11 +331,13 @@ if __name__ == "__main__":
 
     for source in data_sources_to_run:
         fetch_and_store_data(source)
-        # generate_and_store_insights(source) # Commented out for debugging
+        generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
 
     
 
+
+    
 
     
