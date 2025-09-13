@@ -38,7 +38,6 @@ def get_db_connection():
 def fetch_newsapi_news():
     """Fetches live general business news from NewsAPI.org."""
     NEWS_API_KEY = os.getenv("NEWS_API_KEY")
-    # This check is redundant due to the main check, but good for safety
     if not NEWS_API_KEY:
         print("🟡 [NewsAPI] NEWS_API_KEY not set. Skipping fetch.")
         return []
@@ -93,7 +92,6 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    # All sources will now use NewsAPI for consistency and reliability
     if source in ['plaid', 'clearbit', 'openbb']:
         print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
         data = {"news": fetch_newsapi_news()}
@@ -163,13 +161,20 @@ def generate_and_store_insights(source):
         today_date = datetime.now().strftime("%Y-%m-%d")
         
         # --- Source-Specific Prompts ---
-        prompt = ""
+        analyst_type = "fintech analyst"
+        focus = "general performance"
+        
         if source == 'plaid':
-            prompt = f"You are a financial analyst. Based on the following business news for {today_date}, provide a summary of key financial events and 3 actionable recommendations for an investor focused on financial indicators like spend, revenue, and transactions. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+            analyst_type = "financial analyst"
+            focus = "financial indicators like spend, revenue, and transactions"
         elif source == 'clearbit':
-            prompt = f"You are a marketing analyst. Based on the following business news for {today_date}, provide a summary of market trends and 3 actionable recommendations for a sales or marketing team. Focus on performance indicators like traffic, engagement, and customer acquisition. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+            analyst_type = "marketing analyst"
+            focus = "performance indicators like traffic, engagement, and customer acquisition"
         elif source == 'openbb':
-            prompt = f"You are a stock market analyst. Based on the following financial news for {today_date}, provide a short summary of market sentiment and 3 actionable recommendations for a retail investor. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+            analyst_type = "stock market analyst"
+            focus = "market sentiment and investment opportunities"
+
+        prompt = f"""You are a {analyst_type}. Based on the following performance data (in the form of recent news articles) for {today_date}, provide a short summary and 3 actionable recommendations to improve performance related to {focus}. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"""
         
         if IS_DEBUG:
             print(f"🤖 [DEBUG] Sending this prompt to Gemini for {source}:")
