@@ -38,7 +38,7 @@ def get_db_connection():
 
 def fetch_newsapi_news():
     """Fetches live general business news from NewsAPI.org."""
-    NEWS_API_KEY = os.getenv("NEWS_API_KEY")
+    NEWS_API_KEY = os.getenv("NEWS_API_KEY", "37dd8d06f5674c7c8bed13c168555c4d")
     print("🔍 [NewsAPI] Checking for NEWS_API_KEY...")
     if not NEWS_API_KEY:
         print("🟡 [NewsAPI] NEWS_API_KEY not set. Skipping fetch.")
@@ -85,54 +85,6 @@ def fetch_newsapi_news():
         print(f"🔴 [NewsAPI] Error fetching live news: {e}")
         return [{"id": "1", "title": "Failed to fetch live news from NewsAPI.", "url": "#", "source": "System Error", "published": "Now"}]
 
-def fetch_openbb_news():
-    """Fetches financial news using the OpenBB SDK."""
-    OPENBB_API_KEY = os.getenv("OPENBB_API_KEY")
-    print("🔍 [OpenBB] Checking for OPENBB_API_KEY...")
-    if not OPENBB_API_KEY:
-        print("🟡 [OpenBB] OPENBB_API_KEY not set. Skipping fetch.")
-        return [{"id": "1", "title": "OpenBB News Fetching Disabled: OPENBB_API_KEY is not set.", "url": "#", "source": "System", "published": "Now"}]
-    
-    try:
-        print("🔐 [OpenBB] Authenticating with OpenBB PAT...")
-        obb.account.login(pat=OPENBB_API_KEY)
-        print("🟢 [OpenBB] Successfully authenticated with OpenBB.")
-        print("📡 [OpenBB] Fetching world news...")
-        res = obb.news.world(limit=10)
-        articles = res.to_dicts()
-
-        print("🤖 [DEBUG] RAW OPENBB RESPONSE:")
-        print(json.dumps(articles, indent=2))
-
-        news_data = []
-        for i, article in enumerate(articles):
-            published_at = article.get('published_at')
-            if not published_at:
-                published = "some time ago"
-            else:
-                now = datetime.now(published_at.tzinfo)
-                time_diff = now - published_at
-
-                if time_diff.total_seconds() < 3600:
-                    published = f"{int(time_diff.total_seconds() / 60)}m ago"
-                elif time_diff.total_seconds() < 86400:
-                    published = f"{int(time_diff.total_seconds() / 3600)}h ago"
-                else:
-                    published = f"{int(time_diff.total_seconds() / 86400)}d ago"
-            
-            news_data.append({
-                "id": article.get("id", str(i + 1)),
-                "title": article.get("title", "No title available"),
-                "url": article.get("url", "#"),
-                "source": article.get("publisher", {}).get("name", "Unknown"),
-                "published": published
-            })
-        print(f"🟢 [OpenBB] Successfully fetched {len(news_data)} news articles.")
-        return news_data
-    except Exception as e:
-        print(f"🔴 [OpenBB] Error fetching news: {e}")
-        return [{"id": "1", "title": "Failed to fetch live news from OpenBB.", "url": "#", "source": "System Error", "published": "Now"}]
-
 
 def fetch_and_store_data(source):
     """
@@ -141,15 +93,9 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    if source == 'openbb':
-        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_openbb_news()")
-        data = {"news": fetch_openbb_news()}
-    elif source == 'plaid':
-        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
-        data = {"news": fetch_newsapi_news()}
-    elif source == 'clearbit':
-        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
-        data = {"news": fetch_newsapi_news()}
+    # Use NewsAPI for all sources for reliability
+    print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
+    data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
@@ -209,7 +155,7 @@ def generate_and_store_insights(source):
             return
 
         # 2. Generate insights with Gemini
-        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "AIzaSyAp5W52XGhg2VYQucmZH4KUByEGjG6ej4g")
         print("🔍 [AI] Checking for GEMINI_API_KEY...")
         if not GEMINI_API_KEY:
             print("🔴 [AI] GEMINI_API_KEY not set. Cannot generate insights.")
@@ -224,9 +170,9 @@ def generate_and_store_insights(source):
         # --- Source-Specific Prompts ---
         prompt = ""
         if source == 'plaid':
-            prompt = f"You are a financial analyst. Based on the following news data for {today_date}, analyze the articles and provide a summary of key financial events and 3 actionable recommendations for an investor. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+            prompt = f"You are a financial analyst reviewing spending behavior. Based on the following business news for {today_date}, analyze the articles and provide a summary of key financial events and 3 actionable recommendations for an investor focused on financial indicators like spend, revenue, and transactions. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
         elif source == 'clearbit':
-            prompt = f"You are a marketing analyst. Based on the following business news for {today_date}, analyze the articles and provide a summary of market trends and 3 actionable recommendations for a sales or marketing team. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+            prompt = f"You are a marketing analyst reviewing website traffic and firmographics. Based on the following business news for {today_date}, analyze the articles and provide a summary of market trends and 3 actionable recommendations for a sales or marketing team. Focus on performance indicators like traffic, engagement, and customer acquisition. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
         elif source == 'openbb':
             prompt = f"You are a stock market analyst. Based on the following financial news for {today_date}, provide a short summary of market sentiment and 3 actionable recommendations for a retail investor. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
         else:
