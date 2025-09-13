@@ -17,6 +17,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# --- Configuration ---
+IS_DEBUG = True
+
 # --- Database Connection and Schema Setup ---
 
 def get_db_connection():
@@ -110,7 +113,8 @@ async def get_latest_data(data_source: str):
     This endpoint fetches the most recent data and pre-generated insights
     for a given data source from the PostgreSQL database.
     """
-    print(f"Received request for latest '{data_source}' data and insights.")
+    if IS_DEBUG:
+        print(f"\n--- 🕵️ [DEBUG] Received request for latest '{data_source}' data ---")
     
     if data_source not in ["plaid", "clearbit", "openbb"]:
         raise HTTPException(status_code=400, detail="Invalid data source")
@@ -122,63 +126,81 @@ async def get_latest_data(data_source: str):
     try:
         with db_conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Fetch raw data
-            print(f"🔍 [DB] Fetching raw data for '{data_source}'...")
+            if IS_DEBUG:
+                print(f"🕵️ [DEBUG] Fetching raw data for '{data_source}' from 'api_data' table...")
             cur.execute("""
-                SELECT data
+                SELECT data, timestamp
                 FROM api_data
                 WHERE api_name = %s
                 ORDER BY timestamp DESC
                 LIMIT 1;
             """, (data_source,))
             data_result = cur.fetchone()
-            print(f"✅ [DB] Raw data result: {'Found' if data_result else 'Not Found'}")
+            if IS_DEBUG:
+                if data_result:
+                    print(f"🕵️ [DEBUG] Raw data found for '{data_source}'. Timestamp: {data_result['timestamp']}")
+                    # print(f"🕵️ [DEBUG] Raw data content (first 100 chars): {str(data_result['data'])[:100]}...")
+                else:
+                    print(f"🕵️ [DEBUG] No raw data found for '{data_source}' in 'api_data' table.")
 
 
             # Fetch insights
-            print(f"🔍 [DB] Fetching insights for '{data_source}'...")
+            if IS_DEBUG:
+                print(f"🕵️ [DEBUG] Fetching insights for '{data_source}' from 'daily_recommendations' table...")
             cur.execute("""
-                SELECT insights
+                SELECT insights, timestamp
                 FROM daily_recommendations
                 WHERE data_source = %s
                 ORDER BY timestamp DESC
                 LIMIT 1;
             """, (data_source,))
             insights_result = cur.fetchone()
-            print(f"✅ [DB] Insights result: {'Found' if insights_result else 'Not Found'}")
+            if IS_DEBUG:
+                if insights_result:
+                    print(f"🕵️ [DEBUG] Insights found for '{data_source}'. Timestamp: {insights_result['timestamp']}")
+                else:
+                     print(f"🕵️ [DEBUG] No insights found for '{data_source}' in 'daily_recommendations' table.")
 
-            # If no data is found, we have a problem.
+
             if not data_result or not data_result.get('data'):
+                 if IS_DEBUG:
+                     print(f"🕵️ [DEBUG] Condition failed: 'not data_result or not data_result.get('data')'. Raising 404.")
                  raise HTTPException(status_code=404, detail=f"No data or insights found for {data_source}. Run the scheduler to populate data.")
 
-            # Build a flexible response. Insights can be optional.
             response_data = {
                 "data": data_result['data'],
                 "insights": insights_result['insights'] if insights_result else "No insights were generated for this data source. Please check the scheduler logs."
             }
             
-            # For Plaid, we also need to fetch the latest news data from another source (e.g., clearbit)
-            # This is because plaid is now fetching EOD data, but the UI needs news.
+            # For Plaid, the frontend expects news data. We will fetch this from the 'openbb' source,
+            # which we know contains news from NewsAPI.org
             if data_source == 'plaid':
-                print(f"🔍 [DB] Plaid requested. Fetching supplementary news data from 'clearbit'...")
+                if IS_DEBUG:
+                    print(f"🕵️ [DEBUG] Plaid requested. Fetching supplementary news data from 'openbb' source...")
                 cur.execute("""
                     SELECT data
                     FROM api_data
-                    WHERE api_name = 'clearbit'
+                    WHERE api_name = 'openbb'
                     ORDER BY timestamp DESC
                     LIMIT 1;
                 """)
                 news_data_result = cur.fetchone()
                 if news_data_result and news_data_result.get('data'):
                     response_data['data']['news'] = news_data_result['data'].get('news', [])
-                    print("✅ [DB] Successfully merged news data into Plaid response.")
+                    if IS_DEBUG:
+                        print("🕵️ [DEBUG] Successfully merged news data into Plaid response.")
                 else:
-                    print("🟡 [DB] No news data found for 'clearbit' to supplement Plaid.")
+                    if IS_DEBUG:
+                        print("🕵️ [DEBUG] No news data found for 'openbb' to supplement Plaid response.")
 
 
-            print(f"📦 [API] Sending response for '{data_source}'.")
+            if IS_DEBUG:
+                print(f"--- ✅ [DEBUG] Sending successful response for '{data_source}' ---")
             return response_data
 
     except Exception as e:
+        if IS_DEBUG:
+            print(f"--- ❌ [DEBUG] An unexpected error occurred: {e} ---")
         print(f"🔴 Error fetching data from database: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred while fetching data: {str(e)}")
     finally:
@@ -214,3 +236,6 @@ else:
 
 
 
+
+
+  
