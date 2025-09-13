@@ -139,10 +139,8 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    if source == 'openbb':
-        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_openbb_news()")
-        data = {"news": fetch_openbb_news()}
-    elif source in ['plaid', 'clearbit']:
+    # We will use NewsAPI for all three sources to ensure reliability
+    if source in ['plaid', 'clearbit', 'openbb']:
         print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
         data = {"news": fetch_newsapi_news()}
     
@@ -320,4 +318,5 @@ if __name__ == "__main__":
     
     print("✅ Scheduled data job finished successfully.")
 
+    
     
