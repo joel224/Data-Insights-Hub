@@ -4,7 +4,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import type { EodDataPoint } from '@/lib/types';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { CartesianGrid, XAxis, YAxis, LineChart, Line } from 'recharts';
 
 interface StockChartProps {
   data: EodDataPoint[];
@@ -14,11 +14,11 @@ interface StockChartProps {
 const chartConfig = {
   price: {
     label: 'Price',
-    color: 'hsl(var(--chart-1))',
+    color: 'hsl(var(--chart-2))',
   },
   sma: {
     label: 'SMA',
-    color: 'hsl(var(--chart-2))',
+    color: 'hsl(var(--chart-1))',
   },
 };
 
@@ -31,7 +31,7 @@ export function StockChart({ data, symbol }: StockChartProps) {
       </CardHeader>
       <CardContent>
         <ChartContainer config={chartConfig} className="h-[300px] w-full">
-          <AreaChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 0 }}>
+          <LineChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 0 }}>
             <CartesianGrid vertical={false} />
             <XAxis
               dataKey="date"
@@ -41,10 +41,11 @@ export function StockChart({ data, symbol }: StockChartProps) {
               tickFormatter={value => value}
             />
             <YAxis
-              domain={['dataMin - 10', 'dataMax + 10']}
               tickLine={false}
               axisLine={false}
               tickMargin={8}
+              tickCount={4}
+              domain={['dataMin - 5', 'dataMax + 5']}
             />
             <ChartTooltip
               cursor={false}
@@ -57,23 +58,21 @@ export function StockChart({ data, symbol }: StockChartProps) {
                 />
               }
             />
-            <Area
+            <Line
               dataKey="price"
               type="natural"
-              fill="var(--color-price)"
-              fillOpacity={0.4}
               stroke="var(--color-price)"
-              stackId="a"
+              strokeWidth={2}
+              dot={false}
             />
-            <Area
+            <Line
               dataKey="sma"
               type="natural"
-              fill="var(--color-sma)"
-              fillOpacity={0.4}
               stroke="var(--color-sma)"
-              stackId="b"
+              strokeWidth={2}
+              dot={false}
             />
-          </AreaChart>
+          </LineChart>
         </ChartContainer>
       </CardContent>
     </Card>
