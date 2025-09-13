@@ -36,49 +36,9 @@ def get_db_connection():
         return None
 
 def fetch_openbb_news():
-    """Fetches world news from OpenBB using the 'yfinance' provider which doesn't need extra keys."""
-    print("🔍 [OpenBB] Checking for OPENBB_API_KEY...")
-    OPENBB_API_KEY = os.getenv("OPENBB_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiSnZwaGhEb25zN0xrbDVTbVBJY1k4MWdEM1FiZ21BZERjRk9WeUxwaCIsImV4cCI6MTc4OTMxNDgyM30.YmWlbRZoqdmjpHaF3cOuKTrcRvGRDdfRmcMJLjFDqfM")
-    if not OPENBB_API_KEY:
-        print("🟡 [OpenBB] OPENBB_API_KEY not set. Skipping fetch.")
-        return []
-    try:
-        print("🔐 [OpenBB] Authenticating with OpenBB PAT...")
-        obb.account.login(pat=OPENBB_API_KEY)
-        print("🟢 [OpenBB] Successfully authenticated with OpenBB.")
-
-        print("📡 [OpenBB] Fetching world news using 'yfinance' provider...")
-        # Use a call that works with yfinance by fetching news for specific major companies
-        news_data_raw = obb.news.company(symbols="AAPL,MSFT,GOOG,AMZN,META", limit=10, provider="yfinance").to_dicts()
-
-        print("🤖 [DEBUG] RAW OPENBB (yfinance) RESPONSE:")
-        print(json.dumps(news_data_raw, indent=2))
-
-        news_data = []
-        for i, article in enumerate(news_data_raw):
-            published_at = datetime.fromtimestamp(article.get('published_date', 0))
-            now = datetime.now()
-            time_diff = now - published_at
-
-            if time_diff.total_seconds() < 3600:
-                published = f"{int(time_diff.total_seconds() / 60)}m ago"
-            elif time_diff.total_seconds() < 86400:
-                published = f"{int(time_diff.total_seconds() / 3600)}h ago"
-            else:
-                published = f"{int(time_diff.total_seconds() / 86400)}d ago"
-
-            news_data.append({
-                "id": str(article.get('id', i)),
-                "title": article["title"],
-                "url": article["url"],
-                "source": article.get("publisher", "Unknown"),
-                "published": published
-            })
-        print(f"🟢 [OpenBB] Successfully fetched {len(news_data)} articles.")
-        return news_data
-    except Exception as e:
-        print(f"🔴 [OpenBB] Error fetching news: {e}")
-        return []
+    """DEPRECATED - This function is no longer used as OpenBB news providers require separate keys."""
+    print("🟡 [OpenBB] fetch_openbb_news is deprecated and will not be used.")
+    return []
 
 
 def fetch_newsapi_news():
@@ -138,12 +98,9 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    if source == 'openbb':
-        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_openbb_news()")
-        data = {"news": fetch_openbb_news()}
-    elif source in ['plaid', 'clearbit']:
-        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
-        data = {"news": fetch_newsapi_news()}
+    # Standardizing on NewsAPI for all data sources for reliability.
+    print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
+    data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
@@ -305,14 +262,15 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-    # --- For Debugging: Run one source at a time ---
-    data_sources_to_run = ["openbb"]
+    data_sources_to_run = ["plaid", "clearbit", "openbb"]
 
     for source in data_sources_to_run:
         fetch_and_store_data(source)
-        # --- For Debugging: AI generation is temporarily disabled ---
-        # generate_and_store_insights(source) 
+        generate_and_store_insights(source) 
     
     print("✅ Scheduled data job finished successfully.")
+
+    
+
 
     
