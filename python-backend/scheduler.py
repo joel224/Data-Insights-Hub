@@ -35,58 +35,6 @@ def get_db_connection():
         return None
 
 
-def fetch_marketstack_news():
-    """Fetches general market news from marketstack.com."""
-    print("🤖 [DEBUG] Fetching data using fetch_marketstack_news()")
-    
-    MARKETSTACK_API_KEY = os.getenv("MARKETSTACK_API_KEY")
-    if not MARKETSTACK_API_KEY:
-        # This check is redundant due to the main check, but good for safety
-        print("🔴 [MarketStack] MARKETSTACK_API_KEY is not set. Skipping fetch.")
-        return []
-
-    try:
-        print("📡 [MarketStack] Fetching news from marketstack.com...")
-        url = f"https://api.marketstack.com/v1/news?access_key={MARKETSTACK_API_KEY}&limit=10&languages=en"
-        response = requests.get(url)
-        response.raise_for_status() 
-        articles_json = response.json()
-        
-        print("🤖 [DEBUG] RAW MARKETSTACK RESPONSE:")
-        print(json.dumps(articles_json, indent=2))
-        
-        articles = articles_json.get("data", [])
-        news_data = []
-        for i, article in enumerate(articles):
-            published_at_str = article.get('published_at')
-            if not published_at_str:
-                published = "some time ago"
-            else:
-                published_at = datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
-                now = datetime.now(published_at.tzinfo)
-                time_diff = now - published_at
-                
-                if time_diff.total_seconds() < 3600:
-                    published = f"{int(time_diff.total_seconds() / 60)}m ago"
-                elif time_diff.total_seconds() < 86400:
-                    published = f"{int(time_diff.total_seconds() / 3600)}h ago"
-                else:
-                    published = f"{int(time_diff.total_seconds() / 86400)}d ago"
-
-            news_data.append({
-                "id": str(i + 1), # Marketstack doesn't provide a stable ID
-                "title": article["title"],
-                "url": article["url"],
-                "source": article.get("source", "Unknown"),
-                "published": published
-            })
-        print(f"🟢 [MarketStack] Successfully fetched {len(news_data)} articles.")
-        return news_data
-    except requests.exceptions.RequestException as e:
-        print(f"🔴 [MarketStack] Error fetching news: {e}")
-        return []
-
-
 def fetch_newsapi_news():
     """Fetches live general business news from NewsAPI.org."""
     NEWS_API_KEY = os.getenv("NEWS_API_KEY")
@@ -102,8 +50,9 @@ def fetch_newsapi_news():
         response.raise_for_status() 
         articles_json = response.json()
         
-        print("🤖 [DEBUG] RAW NEWSAPI.ORG RESPONSE:")
-        print(json.dumps(articles_json, indent=2))
+        if IS_DEBUG:
+            print("🤖 [DEBUG] RAW NEWSAPI.ORG RESPONSE:")
+            print(json.dumps(articles_json, indent=2))
         
         articles = articles_json.get("articles", [])
         news_data = []
@@ -144,11 +93,9 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    if source == 'plaid':
-        data = {"news": fetch_marketstack_news()}
-    elif source == 'openbb':
-        data = {"news": fetch_marketstack_news()}
-    elif source == 'clearbit':
+    # All sources will now use NewsAPI for consistency and reliability
+    if source in ['plaid', 'clearbit', 'openbb']:
+        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
         data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
@@ -224,8 +171,9 @@ def generate_and_store_insights(source):
         elif source == 'openbb':
             prompt = f"You are a stock market analyst. Based on the following financial news for {today_date}, provide a short summary of market sentiment and 3 actionable recommendations for a retail investor. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
         
-        print(f"🤖 [DEBUG] Sending this prompt to Gemini for {source}:")
-        print(prompt)
+        if IS_DEBUG:
+            print(f"🤖 [DEBUG] Sending this prompt to Gemini for {source}:")
+            print(prompt)
 
         print(f"🧠 [AI] Generating insights for {source}... (This may take a moment)")
         response = model.generate_content(prompt)
@@ -233,8 +181,9 @@ def generate_and_store_insights(source):
         print(f"💡 [AI] Insights generated for {source}.")
 
         
-        print(f"🤖 [DEBUG] Received insights for {source}:")
-        print(insights)
+        if IS_DEBUG:
+            print(f"🤖 [DEBUG] Received insights for {source}:")
+            print(insights)
 
         # 3. Store the generated insights
         with db_conn.cursor() as cur:
@@ -297,12 +246,12 @@ if __name__ == "__main__":
 
     # --- Upfront API Key Check ---
     print("🔍 [Pre-flight] Checking for required API keys...")
-    required_keys = ["GEMINI_API_KEY", "MARKETSTACK_API_KEY", "NEWS_API_KEY"]
+    required_keys = ["GEMINI_API_KEY", "NEWS_API_KEY"]
     missing_keys = [key for key in required_keys if not os.getenv(key)]
 
     if missing_keys:
-        print(f"🔴 [FATAL] The following required API keys are missing in your .env file: {', '.join(missing_keys)}")
-        print("Please add them to your .env file and try again.")
+        print(f"🔴 [FATAL] The following required API keys are missing in your .env file or environment: {', '.join(missing_keys)}")
+        print("Please add them and try again.")
         sys.exit(1)
     else:
         print("🟢 [Pre-flight] All required API keys are present.")
@@ -324,9 +273,3 @@ if __name__ == "__main__":
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
-
-    
-
-    
-
-    
