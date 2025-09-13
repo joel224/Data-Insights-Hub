@@ -36,7 +36,7 @@ def get_db_connection():
         return None
 
 def fetch_openbb_news():
-    """Fetches world news from OpenBB using a provider that doesn't need extra keys."""
+    """Fetches world news from OpenBB using the 'yfinance' provider which doesn't need extra keys."""
     print("🔍 [OpenBB] Checking for OPENBB_API_KEY...")
     OPENBB_API_KEY = os.getenv("OPENBB_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiSnZwaGhEb25zN0xrbDVTbVBJY1k4MWdEM1FiZ21BZERjRk9WeUxwaCIsImV4cCI6MTc4OTMxNDgyM30.YmWlbRZoqdmjpHaF3cOuKTrcRvGRDdfRmcMJLjFDqfM")
     if not OPENBB_API_KEY:
@@ -48,16 +48,15 @@ def fetch_openbb_news():
         print("🟢 [OpenBB] Successfully authenticated with OpenBB.")
 
         print("📡 [OpenBB] Fetching world news using 'yfinance' provider...")
-        # Explicitly use 'yfinance' which doesn't require extra API keys.
-        news_data_raw = obb.news.world(provider="yfinance", limit=10).to_dicts()
-        
+        # Use a call that works with yfinance
+        news_data_raw = obb.news.company(symbols="AAPL,MSFT,GOOG,AMZN,META", limit=10, provider="yfinance").to_dicts()
+
         print("🤖 [DEBUG] RAW OPENBB (yfinance) RESPONSE:")
         print(json.dumps(news_data_raw, indent=2))
 
         news_data = []
         for i, article in enumerate(news_data_raw):
-            # Convert timestamp to a readable "X days/hours/minutes ago" format
-            published_at = datetime.fromtimestamp(article.get('created', 0))
+            published_at = datetime.fromtimestamp(article.get('published_date', 0))
             now = datetime.now()
             time_diff = now - published_at
 
@@ -69,9 +68,9 @@ def fetch_openbb_news():
                 published = f"{int(time_diff.total_seconds() / 86400)}d ago"
 
             news_data.append({
-                "id": str(article.get('uuid', i)),
+                "id": str(article.get('id', i)),
                 "title": article["title"],
-                "url": article["link"],
+                "url": article["url"],
                 "source": article.get("publisher", "Unknown"),
                 "published": published
             })
@@ -139,8 +138,10 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    # We will use NewsAPI for all three sources to ensure reliability
-    if source in ['plaid', 'clearbit', 'openbb']:
+    if source == 'openbb':
+        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_openbb_news()")
+        data = {"news": fetch_openbb_news()}
+    elif source in ['plaid', 'clearbit']:
         print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
         data = {"news": fetch_newsapi_news()}
     
@@ -222,9 +223,6 @@ def generate_and_store_insights(source):
             prompt = f"You are a marketing analyst reviewing website traffic and firmographics. Based on the following business news for {today_date}, analyze the articles and provide a summary of market trends and 3 actionable recommendations for a sales or marketing team. Focus on performance indicators like traffic, engagement, and customer acquisition. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
         elif source == 'openbb':
             prompt = f"You are a stock market analyst. Based on the following financial news for {today_date}, provide a short summary of market sentiment and 3 actionable recommendations for a retail investor. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
-        else:
-            prompt = f"You are a fintech analyst. Based on the following performance data for {today_date}, provide a short summary and 3 actionable recommendations to improve performance. Data:\n\n{json.dumps(raw_data, indent=2)}"
-        
         
         print(f"🤖 [DEBUG] Sending this prompt to Gemini for {source}:")
         print(prompt)
@@ -308,8 +306,8 @@ if __name__ == "__main__":
 
 
     # --- IMPORTANT ---
-    # To avoid API rate limits on the free tier, we only run ONE source at a time.
-    # Change the value in the list to 'plaid', 'clearbit', or 'openbb' to test each one.
+    # To avoid API rate limits, we run one source at a time.
+    # Change the value in the list to 'plaid', 'clearbit', or 'openbb'.
     data_sources_to_run = ["openbb"]
 
     for source in data_sources_to_run:
@@ -318,5 +316,4 @@ if __name__ == "__main__":
     
     print("✅ Scheduled data job finished successfully.")
 
-    
     
