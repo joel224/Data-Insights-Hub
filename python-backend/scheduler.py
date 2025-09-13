@@ -48,7 +48,7 @@ def fetch_openbb_news():
         print("🟢 [OpenBB] Successfully authenticated with OpenBB.")
 
         print("📡 [OpenBB] Fetching world news using 'yfinance' provider...")
-        # Use a call that works with yfinance
+        # Use a call that works with yfinance by fetching news for specific major companies
         news_data_raw = obb.news.company(symbols="AAPL,MSFT,GOOG,AMZN,META", limit=10, provider="yfinance").to_dicts()
 
         print("🤖 [DEBUG] RAW OPENBB (yfinance) RESPONSE:")
@@ -218,9 +218,9 @@ def generate_and_store_insights(source):
         # --- Source-Specific Prompts ---
         prompt = ""
         if source == 'plaid':
-            prompt = f"You are a financial analyst reviewing spending behavior. Based on the following business news for {today_date}, analyze the articles and provide a summary of key financial events and 3 actionable recommendations for an investor focused on financial indicators like spend, revenue, and transactions. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+            prompt = f"You are a financial analyst. Based on the following business news for {today_date}, provide a summary of key financial events and 3 actionable recommendations for an investor focused on financial indicators like spend, revenue, and transactions. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
         elif source == 'clearbit':
-            prompt = f"You are a marketing analyst reviewing website traffic and firmographics. Based on the following business news for {today_date}, analyze the articles and provide a summary of market trends and 3 actionable recommendations for a sales or marketing team. Focus on performance indicators like traffic, engagement, and customer acquisition. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
+            prompt = f"You are a marketing analyst. Based on the following business news for {today_date}, provide a summary of market trends and 3 actionable recommendations for a sales or marketing team. Focus on performance indicators like traffic, engagement, and customer acquisition. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
         elif source == 'openbb':
             prompt = f"You are a stock market analyst. Based on the following financial news for {today_date}, provide a short summary of market sentiment and 3 actionable recommendations for a retail investor. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"
         
@@ -305,14 +305,13 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-    # --- IMPORTANT ---
-    # To avoid API rate limits, we run one source at a time.
-    # Change the value in the list to 'plaid', 'clearbit', or 'openbb'.
+    # --- For Debugging: Run one source at a time ---
     data_sources_to_run = ["openbb"]
 
     for source in data_sources_to_run:
         fetch_and_store_data(source)
-        generate_and_store_insights(source)
+        # --- For Debugging: AI generation is temporarily disabled ---
+        # generate_and_store_insights(source) 
     
     print("✅ Scheduled data job finished successfully.")
 
