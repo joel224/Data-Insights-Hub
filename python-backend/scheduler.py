@@ -34,6 +34,113 @@ def get_db_connection():
         print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
 
+def calculate_metrics(eod_data):
+    """Calculates SMA, RSI, and Performance Metrics from EOD data."""
+    if not eod_data:
+        return eod_data, None
+
+    prices = [item['price'] for item in eod_data]
+    sma_period = 5
+    rsi_period = 5
+
+    # SMA Calculation
+    for i in range(len(eod_data)):
+        if i >= sma_period - 1:
+            eod_data[i]['sma'] = round(sum(p['price'] for p in eod_data[i-sma_period+1:i+1]) / sma_period, 2)
+        else:
+            eod_data[i]['sma'] = None
+
+    # RSI Calculation
+    gains = []
+    losses = []
+    for i in range(1, len(prices)):
+        change = prices[i] - prices[i-1]
+        if change > 0:
+            gains.append(change)
+            losses.append(0)
+        else:
+            gains.append(0)
+            losses.append(abs(change))
+
+    avg_gain = sum(gains[:rsi_period]) / rsi_period if len(gains) >= rsi_period else 0
+    avg_loss = sum(losses[:rsi_period]) / rsi_period if len(losses) >= rsi_period else 0
+
+    for i in range(len(eod_data)):
+        if i < rsi_period:
+            eod_data[i]['rsi'] = None
+            continue
+
+        if i > rsi_period:
+            avg_gain = (avg_gain * (rsi_period - 1) + (gains[i-1] if i-1 < len(gains) else 0)) / rsi_period
+            avg_loss = (avg_loss * (rsi_period - 1) + (losses[i-1] if i-1 < len(losses) else 0)) / rsi_period
+
+        if avg_loss == 0:
+            rs = 100
+        else:
+            rs = avg_gain / avg_loss
+        
+        rsi = 100 - (100 / (1 + rs))
+        eod_data[i]['rsi'] = round(rsi, 2)
+
+    # Performance Metrics
+    returns = [(prices[i] - prices[i-1]) / prices[i-1] for i in range(1, len(prices))]
+    avg_return = sum(returns) / len(returns) if returns else 0
+    std_dev = (sum([(r - avg_return)**2 for r in returns]) / len(returns))**0.5 if returns else 0
+    
+    # Assuming daily data, 252 trading days in a year
+    annual_return = ((1 + avg_return)**252 - 1) * 100 if avg_return is not None else 0
+    volatility = std_dev * (252**0.5) * 100 if std_dev is not None else 0
+    
+    # Assuming risk-free rate of 0 for simplicity
+    sharpe_ratio = (annual_return / 100) / (volatility / 100) if volatility else 0
+
+    performance = {
+        "volatility": f"{volatility:.2f}%",
+        "sharpeRatio": f"{sharpe_ratio:.2f}",
+        "annualReturn": f"{annual_return:.2f}%"
+    }
+    
+    # Return data from the point where SMA and RSI are no longer None
+    first_valid_index = 0
+    for i, item in enumerate(eod_data):
+        if item.get('sma') is not None and item.get('rsi') is not None:
+            first_valid_index = i
+            break
+
+    return eod_data[first_valid_index:], performance
+
+
+def fetch_marketstack_eod():
+    """Fetches end-of-day stock data from MarketStack API."""
+    MARKETSTACK_API_KEY = os.getenv("MARKETSTACK_API_KEY")
+    if not MARKETSTACK_API_KEY:
+        print("🟡 [MarketStack] MARKETSTACK_API_KEY not set. Using mocked data.")
+        # Fallback to mocked data if key is missing
+        return {"eod": [], "symbol": "AAPL", "performance": {}}, None
+
+    try:
+        print("📡 [MarketStack] Fetching EOD data for AAPL from marketstack.com...")
+        # Fetching more data points for better calculation
+        url = f"http://api.marketstack.com/v1/eod?access_key={MARKETSTACK_API_KEY}&symbols=AAPL&limit=20"
+        response = requests.get(url)
+        response.raise_for_status()
+        eod_json = response.json()
+        
+        # Sort data oldest to newest for calculations
+        eod_raw = sorted(eod_json.get("data", []), key=lambda x: datetime.strptime(x['date'], '%Y-%m-%dT%H:%M:%S%z'))
+        
+        eod_data = [{"date": item['date'][:10], "price": round(item['close'], 2)} for item in eod_raw]
+
+        eod_data_with_metrics, performance = calculate_metrics(eod_data)
+        
+        print(f"🟢 [MarketStack] Successfully fetched and processed {len(eod_data_with_metrics)} EOD data points for AAPL.")
+        return {"eod": eod_data_with_metrics, "symbol": "AAPL", "performance": performance}
+
+    except requests.exceptions.RequestException as e:
+        print(f"🔴 [MarketStack] Error fetching live EOD data: {e}")
+        return {"eod": [], "symbol": "AAPL", "performance": {}}
+
+
 def fetch_newsdata_io_news():
     """Fetches live general business news from NewsData.io."""
     NEWSDATA_API_KEY = os.getenv("NEWSDATA_API_KEY")
@@ -85,6 +192,7 @@ def fetch_newsdata_io_news():
         print(f"🔴 [NewsData.io] Error fetching live news: {e}")
         return [{"id": "1", "title": "Failed to fetch live news from NewsData.io.", "url": "#", "source": "System Error", "published": "Now"}]
 
+
 def fetch_and_store_data(source):
     """
     Fetches data for the specified source and stores it in the PostgreSQL database.
@@ -92,11 +200,14 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
 
     data = {}
-    if source in ['plaid', 'clearbit', 'openbb']:
+    if source == 'plaid':
+        print("🤖 [DEBUG] Fetching data for 'plaid' using fetch_marketstack_eod()")
+        data = fetch_marketstack_eod()
+    elif source in ['clearbit', 'openbb']:
         print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsdata_io_news()")
         data = {"news": fetch_newsdata_io_news()}
 
-    if not data or not data.get("news"):
+    if not data:
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
         return
 
@@ -256,7 +367,7 @@ if __name__ == "__main__":
 
     # --- Upfront API Key Check ---
     print("🔍 [Pre-flight] Checking for required API keys...")
-    required_keys = ["NEWSDATA_API_KEY", "GEMINI_API_KEY"]
+    required_keys = ["NEWSDATA_API_KEY", "GEMINI_API_KEY", "MARKETSTACK_API_KEY"]
     missing_keys = [key for key in required_keys if not os.getenv(key)]
 
     if missing_keys:
@@ -284,3 +395,6 @@ if __name__ == "__main__":
 
     print("✅ Scheduled data job finished successfully.")
 
+
+
+    
