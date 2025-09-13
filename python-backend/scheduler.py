@@ -114,9 +114,27 @@ def fetch_marketstack_eod(symbol='AAPL', limit=30):
                 "sma": sma_20[i - sma_offset - (len(prices) - len(sma_20))] if i >= start_index else None,
                 "rsi": rsi_14[i - rsi_offset - (len(prices)-len(rsi_14))] if i >= start_index and (i - rsi_offset - (len(prices)-len(rsi_14))) < len(rsi_14) else None
             })
+        
+        # --- Performance Metrics Calculation ---
+        returns = [(prices[i] - prices[i-1]) / prices[i-1] for i in range(1, len(prices))]
+        
+        # Volatility (Annualized Standard Deviation of Returns)
+        volatility = (sum([(r - (sum(returns) / len(returns)))**2 for r in returns]) / (len(returns) - 1))**0.5 * (252**0.5)
+        
+        # Annual Return
+        annual_return = ((prices[-1] / prices[0]) ** (252 / len(prices))) - 1
+        
+        # Sharpe Ratio (assuming risk-free rate of 0)
+        sharpe_ratio = (sum(returns) / len(returns)) / ((sum([(r - (sum(returns) / len(returns)))**2 for r in returns]) / (len(returns) - 1))**0.5) * (252**0.5)
+
+        performance = {
+            "volatility": f"{volatility:.1%}",
+            "sharpeRatio": f"{sharpe_ratio:.1f}",
+            "annualReturn": f"{annual_return:.1%}"
+        }
 
         print(f"🟢 [MarketStack] Successfully fetched and processed {len(final_data)} EOD data points for {symbol}.")
-        return {"eod": final_data, "symbol": symbol}
+        return {"eod": final_data, "symbol": symbol, "performance": performance}
         
     except requests.exceptions.RequestException as e:
         print(f"🔴 [MarketStack] Error fetching EOD data: {e}")
@@ -249,6 +267,10 @@ def generate_and_store_insights(source):
 
         # 2. Generate insights with Gemini
         GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        if not GEMINI_API_KEY:
+            print("🟡 [AI] GEMINI_API_KEY not found. Skipping insight generation.")
+            return
+            
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
         
@@ -372,5 +394,6 @@ if __name__ == "__main__":
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
+
 
 

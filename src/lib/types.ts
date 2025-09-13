@@ -7,9 +7,16 @@ export type EodDataPoint = {
   rsi: number;
 }
 
+export type PerformanceMetrics = {
+  volatility: string;
+  sharpeRatio: string;
+  annualReturn: string;
+}
+
 export type PlaidData = {
   eod: EodDataPoint[];
   symbol: string;
+  performance: PerformanceMetrics;
   news?: OpenBBNews[];
 }
 

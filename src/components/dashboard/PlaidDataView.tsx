@@ -14,12 +14,12 @@ interface PlaidDataViewProps {
 }
 
 export function PlaidDataView({ data }: PlaidDataViewProps) {
-  const { eod, news, symbol } = data;
+  const { eod, news, symbol, performance } = data;
 
   const performanceMetrics = [
-    { label: 'Volatility', value: '15.2%' },
-    { label: 'Sharpe Ratio', value: '1.8' },
-    { label: 'Annual Return', value: '25.4%' },
+    { label: 'Volatility', value: performance?.volatility || 'N/A' },
+    { label: 'Sharpe Ratio', value: performance?.sharpeRatio || 'N/A' },
+    { label: 'Annual Return', value: performance?.annualReturn || 'N/A' },
   ];
 
   return (
