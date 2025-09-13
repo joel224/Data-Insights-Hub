@@ -47,7 +47,7 @@ def fetch_marketstack_news():
 
     try:
         print("📡 [MarketStack] Fetching news from marketstack.com...")
-        url = f"http://api.marketstack.com/v1/news?access_key={MARKETSTACK_API_KEY}&limit=10&languages=en"
+        url = f"https://api.marketstack.com/v1/news?access_key={MARKETSTACK_API_KEY}&limit=10&languages=en"
         response = requests.get(url)
         response.raise_for_status() 
         articles_json = response.json()
@@ -324,6 +324,8 @@ if __name__ == "__main__":
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
+
+    
 
     
 
