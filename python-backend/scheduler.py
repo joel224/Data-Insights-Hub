@@ -35,10 +35,73 @@ def get_db_connection():
         print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
 
+
 def fetch_openbb_news():
-    """DEPRECATED - This function is no longer used as OpenBB news providers require separate keys."""
-    print("🟡 [OpenBB] fetch_openbb_news is deprecated and will not be used.")
-    return []
+    """Fetches company news from OpenBB using the Benzinga provider."""
+    print("🤖 [DEBUG] Fetching data for 'openbb' using fetch_openbb_news()")
+    
+    OPENBB_PAT = os.getenv("OPENBB_API_KEY")
+    BENZINGA_API_KEY = os.getenv("BENZINGA_API_KEY")
+
+    print("🔍 [OpenBB] Checking for OPENBB_API_KEY...")
+    if not OPENBB_PAT:
+        print("🟡 [OpenBB] OPENBB_API_KEY not set. Skipping authentication.")
+    else:
+        try:
+            print("🔐 [OpenBB] Authenticating with OpenBB PAT...")
+            obb.account.login(pat=OPENBB_PAT)
+            print("🟢 [OpenBB] Successfully authenticated with OpenBB.")
+        except Exception as e:
+            print(f"🔴 [OpenBB] Error during OpenBB authentication: {e}")
+            # Continue even if auth fails, some providers might work without it
+
+    print("🔍 [Benzinga] Checking for BENZINGA_API_KEY...")
+    if not BENZINGA_API_KEY:
+        print("🔴 [Benzinga] BENZINGA_API_KEY is not set in the environment. Cannot fetch news from Benzinga.")
+        return []
+
+    try:
+        print("📡 [OpenBB] Fetching news using 'benzinga' provider...")
+        # Use the provided Benzinga key for the request
+        news_data_raw = obb.news.company(
+            symbols="AAPL,MSFT,GOOG,AMZN,META", 
+            limit=10, 
+            provider="benzinga",
+            api_key=BENZINGA_API_KEY # Pass the key directly
+        ).to_dicts()
+
+        print("🤖 [DEBUG] RAW OPENBB/BENZINGA RESPONSE:")
+        print(json.dumps(news_data_raw, indent=2))
+
+        news_data = []
+        for i, article in enumerate(news_data_raw):
+            published_at_str = article.get('created_at')
+            if not published_at_str:
+                published = "some time ago"
+            else:
+                published_at = datetime.fromisoformat(published_at_str)
+                now = datetime.now(published_at.tzinfo)
+                time_diff = now - published_at
+                
+                if time_diff.total_seconds() < 3600:
+                    published = f"{int(time_diff.total_seconds() / 60)}m ago"
+                elif time_diff.total_seconds() < 86400:
+                    published = f"{int(time_diff.total_seconds() / 3600)}h ago"
+                else:
+                    published = f"{int(time_diff.total_seconds() / 86400)}d ago"
+
+            news_data.append({
+                "id": str(article.get('id', i + 1)),
+                "title": article["title"],
+                "url": article["url"],
+                "source": article.get("author", "Benzinga"),
+                "published": published
+            })
+        print(f"🟢 [OpenBB/Benzinga] Successfully fetched {len(news_data)} articles.")
+        return news_data
+    except Exception as e:
+        print(f"🔴 [OpenBB/Benzinga] Error fetching news: {e}")
+        return []
 
 
 def fetch_newsapi_news():
@@ -98,9 +161,11 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    # Standardizing on NewsAPI for all data sources for reliability.
-    print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
-    data = {"news": fetch_newsapi_news()}
+    if source == 'openbb':
+        data = {"news": fetch_openbb_news()}
+    elif source in ['plaid', 'clearbit']:
+        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
+        data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
@@ -262,11 +327,11 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-    data_sources_to_run = ["plaid", "clearbit", "openbb"]
+    data_sources_to_run = ["openbb"] # For debugging, only run openbb
 
     for source in data_sources_to_run:
         fetch_and_store_data(source)
-        generate_and_store_insights(source) 
+        # generate_and_store_insights(source) # Commented out for debugging
     
     print("✅ Scheduled data job finished successfully.")
 
