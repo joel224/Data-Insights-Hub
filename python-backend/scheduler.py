@@ -7,7 +7,6 @@ import psycopg2
 import sys
 import requests
 import google.generativeai as genai
-from openbb import obb
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -36,50 +35,35 @@ def get_db_connection():
         return None
 
 
-def fetch_openbb_news():
-    """Fetches company news from OpenBB using the Benzinga provider."""
-    print("🤖 [DEBUG] Fetching data for 'openbb' using fetch_openbb_news()")
+def fetch_marketstack_news():
+    """Fetches general market news from marketstack.com."""
+    print("🤖 [DEBUG] Fetching data for 'openbb' using fetch_marketstack_news()")
     
-    OPENBB_PAT = os.getenv("OPENBB_API_KEY")
-    BENZINGA_API_KEY = os.getenv("BENZINGA_API_KEY")
-
-    print("🔍 [OpenBB] Checking for OPENBB_API_KEY...")
-    if not OPENBB_PAT:
-        print("🟡 [OpenBB] OPENBB_API_KEY not set. Skipping authentication.")
-    else:
-        try:
-            print("🔐 [OpenBB] Authenticating with OpenBB PAT...")
-            obb.account.login(pat=OPENBB_PAT)
-            print("🟢 [OpenBB] Successfully authenticated with OpenBB.")
-        except Exception as e:
-            print(f"🔴 [OpenBB] Error during OpenBB authentication: {e}")
-            # Continue even if auth fails, some providers might work without it
-
-    print("🔍 [Benzinga] Checking for BENZINGA_API_KEY...")
-    if not BENZINGA_API_KEY:
-        print("🔴 [Benzinga] BENZINGA_API_KEY is not set in the environment. Cannot fetch news from Benzinga.")
+    MARKETSTACK_API_KEY = os.getenv("MARKETSTACK_API_KEY")
+    print("🔍 [MarketStack] Checking for MARKETSTACK_API_KEY...")
+    if not MARKETSTACK_API_KEY:
+        print("🔴 [MarketStack] MARKETSTACK_API_KEY is not set. Skipping fetch.")
         return []
 
     try:
-        print("📡 [OpenBB] Fetching news using 'benzinga' provider...")
-        # Use the provided Benzinga key for the request
-        news_data_raw = obb.news.company(
-            symbols="AAPL,MSFT,GOOG,AMZN,META", 
-            limit=10, 
-            provider="benzinga",
-            api_key=BENZINGA_API_KEY # Pass the key directly
-        ).to_dicts()
-
-        print("🤖 [DEBUG] RAW OPENBB/BENZINGA RESPONSE:")
-        print(json.dumps(news_data_raw, indent=2))
-
+        print("📡 [MarketStack] Fetching news from marketstack.com...")
+        # We are using the "general" news endpoint. You can add tickers for more specific news.
+        url = f"http://api.marketstack.com/v1/news?access_key={MARKETSTACK_API_KEY}&limit=10&languages=en"
+        response = requests.get(url)
+        response.raise_for_status() 
+        articles_json = response.json()
+        
+        print("🤖 [DEBUG] RAW MARKETSTACK RESPONSE:")
+        print(json.dumps(articles_json, indent=2))
+        
+        articles = articles_json.get("data", [])
         news_data = []
-        for i, article in enumerate(news_data_raw):
-            published_at_str = article.get('created_at')
+        for i, article in enumerate(articles):
+            published_at_str = article.get('published_at')
             if not published_at_str:
                 published = "some time ago"
             else:
-                published_at = datetime.fromisoformat(published_at_str)
+                published_at = datetime.fromisoformat(published_at_str.replace('Z', '+00:00'))
                 now = datetime.now(published_at.tzinfo)
                 time_diff = now - published_at
                 
@@ -91,16 +75,16 @@ def fetch_openbb_news():
                     published = f"{int(time_diff.total_seconds() / 86400)}d ago"
 
             news_data.append({
-                "id": str(article.get('id', i + 1)),
+                "id": str(i + 1), # Marketstack doesn't provide a stable ID
                 "title": article["title"],
                 "url": article["url"],
-                "source": article.get("author", "Benzinga"),
+                "source": article.get("source", "Unknown"),
                 "published": published
             })
-        print(f"🟢 [OpenBB/Benzinga] Successfully fetched {len(news_data)} articles.")
+        print(f"🟢 [MarketStack] Successfully fetched {len(news_data)} articles.")
         return news_data
-    except Exception as e:
-        print(f"🔴 [OpenBB/Benzinga] Error fetching news: {e}")
+    except requests.exceptions.RequestException as e:
+        print(f"🔴 [MarketStack] Error fetching news: {e}")
         return []
 
 
@@ -162,7 +146,7 @@ def fetch_and_store_data(source):
     
     data = {}
     if source == 'openbb':
-        data = {"news": fetch_openbb_news()}
+        data = {"news": fetch_marketstack_news()}
     elif source in ['plaid', 'clearbit']:
         print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
         data = {"news": fetch_newsapi_news()}
@@ -327,17 +311,12 @@ if __name__ == "__main__":
         sys.exit(1)
 
 
-    data_sources_to_run = ["openbb"] # For debugging, only run openbb
+    data_sources_to_run = ["plaid", "clearbit", "openbb"]
 
     for source in data_sources_to_run:
         fetch_and_store_data(source)
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
-
-    
-
-
-    
 
     
