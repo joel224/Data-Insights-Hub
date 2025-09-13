@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useTransition } from 'react';
@@ -6,7 +7,7 @@ import { Building2, Landmark, LineChart, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import type { ClearbitData, DataSource, OpenBBData, PlaidTransaction, PipelineState } from '@/lib/types';
+import type { ClearbitData, DataSource, OpenBBData, PipelineState, PlaidData } from '@/lib/types';
 
 import { PlaidDataView } from './PlaidDataView';
 import { ClearbitDataView } from './ClearbitDataView';
@@ -47,7 +48,7 @@ export function Dashboard() {
 
   const [activeDataSource, setActiveDataSource] = useState<DataSource | null>(null);
 
-  const [plaidState, setPlaidState] = useState<PipelineState<PlaidTransaction[]>>({ data: null, insights: null });
+  const [plaidState, setPlaidState] = useState<PipelineState<PlaidData>>({ data: null, insights: null });
   const [clearbitState, setClearbitState] = useState<PipelineState<ClearbitData>>({ data: null, insights: null });
   const [openbbState, setOpenbbState] = useState<PipelineState<OpenBBData>>({ data: null, insights: null });
 
@@ -122,7 +123,7 @@ export function Dashboard() {
       <TabsContent value="plaid" className="space-y-4">
         {plaidState.data ? (
             <div className="space-y-6">
-                <PlaidDataView data={plaidState.data.news || []} />
+                <PlaidDataView data={plaidState.data} />
                 {plaidState.insights && <InsightsCard insights={plaidState.insights} />}
             </div>
         ) : isLoading('plaid') ? (

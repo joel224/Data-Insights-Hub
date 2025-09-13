@@ -34,6 +34,94 @@ def get_db_connection():
         print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
 
+def fetch_marketstack_eod(symbol='AAPL', limit=30):
+    """Fetches End-of-Day stock data from MarketStack for a given symbol."""
+    MARKETSTACK_API_KEY = os.getenv("MARKETSTACK_API_KEY")
+    if not MARKETSTACK_API_KEY:
+        print("🟡 [MarketStack] MARKETSTACK_API_KEY not set. Skipping fetch.")
+        return {}
+    
+    print(f"📡 [MarketStack] Fetching EOD data for {symbol} from marketstack.com...")
+    try:
+        url = f"http://api.marketstack.com/v1/eod?access_key={MARKETSTACK_API_KEY}&symbols={symbol}&limit={limit}"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+
+        if IS_DEBUG:
+            print("🤖 [DEBUG] RAW MARKETSTACK EOD RESPONSE:")
+            print(json.dumps(data, indent=2))
+        
+        # Check for errors in the response
+        if 'error' in data:
+            print(f"🔴 [MarketStack] API Error: {data['error']['message']}")
+            return {}
+
+        eod_data = data.get('data', [])
+        
+        # Add calculations for SMA and RSI
+        prices = [d['close'] for d in reversed(eod_data)] # Reverse to have oldest first
+        
+        def calculate_sma(data, window):
+            if len(data) < window: return []
+            return [sum(data[i-window:i]) / window for i in range(window, len(data) + 1)]
+
+        def calculate_rsi(data, window=14):
+            if len(data) < window: return []
+            deltas = [data[i] - data[i-1] for i in range(1, len(data))]
+            gains = [d if d > 0 else 0 for d in deltas]
+            losses = [-d if d < 0 else 0 for d in deltas]
+
+            avg_gain = sum(gains[:window]) / window
+            avg_loss = sum(losses[:window]) / window
+
+            rsi_values = []
+            for i in range(window, len(data)):
+                if avg_loss == 0:
+                    rsi = 100
+                else:
+                    rs = avg_gain / avg_loss
+                    rsi = 100 - (100 / (1 + rs))
+                rsi_values.append(rsi)
+                
+                # Wilder's smoothing
+                gain = gains[i-1] if i-1 < len(gains) else 0
+                loss = losses[i-1] if i-1 < len(losses) else 0
+                avg_gain = (avg_gain * (window - 1) + gain) / window
+                avg_loss = (avg_loss * (window - 1) + loss) / window
+
+            return rsi_values
+
+        sma_20 = calculate_sma(prices, 20)
+        rsi_14 = calculate_rsi(prices)
+
+        # Align data points
+        final_data = []
+        # Start from the point where we have all data (SMA, RSI, price)
+        start_index = 20 # Corresponds to SMA 20 window
+        sma_offset = start_index - len(sma_20)
+        rsi_offset = start_index - (len(prices) - len(rsi_14))
+        
+        for i in range(start_index, len(prices)):
+            data_point = eod_data[len(prices) - 1 - i] # eod_data is newest first
+            
+            # Format date to be more readable
+            date_obj = datetime.fromisoformat(data_point['date'].replace('Z', '+00:00'))
+
+            final_data.append({
+                "date": date_obj.strftime('%b %d'),
+                "price": data_point['close'],
+                "sma": sma_20[i - sma_offset - (len(prices) - len(sma_20))] if i >= start_index else None,
+                "rsi": rsi_14[i - rsi_offset - (len(prices)-len(rsi_14))] if i >= start_index and (i - rsi_offset - (len(prices)-len(rsi_14))) < len(rsi_14) else None
+            })
+
+        print(f"🟢 [MarketStack] Successfully fetched and processed {len(final_data)} EOD data points for {symbol}.")
+        return {"eod": final_data, "symbol": symbol}
+        
+    except requests.exceptions.RequestException as e:
+        print(f"🔴 [MarketStack] Error fetching EOD data: {e}")
+        return {}
+
 
 def fetch_newsapi_news():
     """Fetches live general business news from NewsAPI.org."""
@@ -92,11 +180,17 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    if source in ['plaid', 'clearbit', 'openbb']:
-        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
+    if source == 'plaid':
+        print("🤖 [DEBUG] Fetching data for 'plaid' using fetch_marketstack_eod()")
+        data = fetch_marketstack_eod()
+    elif source == 'clearbit':
+        print("🤖 [DEBUG] Fetching data for 'clearbit' using fetch_newsapi_news()")
         data = {"news": fetch_newsapi_news()}
-    
-    if not data or not data.get("news"):
+    elif source == 'openbb':
+        print("🤖 [DEBUG] Fetching data for 'openbb' using fetch_newsapi_news()")
+        data = {"news": fetch_newsapi_news()}
+
+    if not data:
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
         return
 
@@ -153,7 +247,7 @@ def generate_and_store_insights(source):
             print(f"🟡 [AI] No raw data found for {source}. Skipping insight generation.")
             return
 
-        # 2. Generate insights with Gemini (API key checked at start)
+        # 2. Generate insights with Gemini
         GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
@@ -162,19 +256,19 @@ def generate_and_store_insights(source):
         
         # --- Source-Specific Prompts ---
         analyst_type = "fintech analyst"
-        focus = "general performance"
+        data_description = "performance data"
         
         if source == 'plaid':
             analyst_type = "financial analyst"
-            focus = "financial indicators like spend, revenue, and transactions"
+            data_description = "end-of-day stock data"
         elif source == 'clearbit':
             analyst_type = "marketing analyst"
-            focus = "performance indicators like traffic, engagement, and customer acquisition"
+            data_description = "the latest business news"
         elif source == 'openbb':
             analyst_type = "stock market analyst"
-            focus = "market sentiment and investment opportunities"
+            data_description = "the latest market news"
 
-        prompt = f"""You are a {analyst_type}. Based on the following performance data (in the form of recent news articles) for {today_date}, provide a short summary and 3 actionable recommendations to improve performance related to {focus}. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"""
+        prompt = f"""You are a {analyst_type}. Based on the following {data_description} for {today_date}, provide a short summary and 3 actionable recommendations. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"""
         
         if IS_DEBUG:
             print(f"🤖 [DEBUG] Sending this prompt to Gemini for {source}:")
@@ -251,7 +345,7 @@ if __name__ == "__main__":
 
     # --- Upfront API Key Check ---
     print("🔍 [Pre-flight] Checking for required API keys...")
-    required_keys = ["NEWS_API_KEY", "GEMINI_API_KEY"]
+    required_keys = ["NEWS_API_KEY", "GEMINI_API_KEY", "MARKETSTACK_API_KEY"]
     missing_keys = [key for key in required_keys if not os.getenv(key)]
 
     if missing_keys:
@@ -278,4 +372,5 @@ if __name__ == "__main__":
         generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
+
 

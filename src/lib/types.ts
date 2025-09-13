@@ -1,5 +1,18 @@
 
 
+export type EodDataPoint = {
+  date: string;
+  price: number;
+  sma: number;
+  rsi: number;
+}
+
+export type PlaidData = {
+  eod: EodDataPoint[];
+  symbol: string;
+  news?: OpenBBNews[];
+}
+
 export type PlaidTransaction = {
   id: string;
   date: string;

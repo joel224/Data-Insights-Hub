@@ -147,14 +147,33 @@ async def get_latest_data(data_source: str):
             print(f"✅ [DB] Insights result: {'Found' if insights_result else 'Not Found'}")
 
             # If no data is found, we have a problem.
-            if not data_result:
-                raise HTTPException(status_code=404, detail=f"No data or insights found for {data_source}. Run the scheduler to populate data.")
+            if not data_result or not data_result.get('data'):
+                 raise HTTPException(status_code=404, detail=f"No data or insights found for {data_source}. Run the scheduler to populate data.")
 
             # Build a flexible response. Insights can be optional.
             response_data = {
                 "data": data_result['data'],
-                "insights": insights_result['insights'] if insights_result else None
+                "insights": insights_result['insights'] if insights_result else "No insights were generated for this data source. Please check the scheduler logs."
             }
+            
+            # For Plaid, we also need to fetch the latest news data from another source (e.g., clearbit)
+            # This is because plaid is now fetching EOD data, but the UI needs news.
+            if data_source == 'plaid':
+                print(f"🔍 [DB] Plaid requested. Fetching supplementary news data from 'clearbit'...")
+                cur.execute("""
+                    SELECT data
+                    FROM api_data
+                    WHERE api_name = 'clearbit'
+                    ORDER BY timestamp DESC
+                    LIMIT 1;
+                """)
+                news_data_result = cur.fetchone()
+                if news_data_result and news_data_result.get('data'):
+                    response_data['data']['news'] = news_data_result['data'].get('news', [])
+                    print("✅ [DB] Successfully merged news data into Plaid response.")
+                else:
+                    print("🟡 [DB] No news data found for 'clearbit' to supplement Plaid.")
+
 
             print(f"📦 [API] Sending response for '{data_source}'.")
             return response_data
@@ -192,5 +211,6 @@ else:
 
 
     
+
 
 
