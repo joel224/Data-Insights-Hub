@@ -246,7 +246,7 @@ if __name__ == "__main__":
 
     # --- Upfront API Key Check ---
     print("🔍 [Pre-flight] Checking for required API keys...")
-    required_keys = ["NEWS_API_KEY"]
+    required_keys = ["NEWS_API_KEY", "GEMINI_API_KEY"]
     missing_keys = [key for key in required_keys if not os.getenv(key)]
 
     if missing_keys:
@@ -270,6 +270,7 @@ if __name__ == "__main__":
 
     for source in data_sources_to_run:
         fetch_and_store_data(source)
-        # generate_and_store_insights(source)
+        generate_and_store_insights(source)
     
     print("✅ Scheduled data job finished successfully.")
+
