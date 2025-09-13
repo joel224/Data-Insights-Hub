@@ -14,11 +14,11 @@ load_dotenv()
 
 # --- Configuration ---
 IS_DEBUG = os.getenv("DEBUG", "false").lower() == "true"
+DATABASE_URL = "postgresql://postgres:LmGJalVzyaEimCvkJGLCvwEibHeDrhTI@maglev.proxy.rlwy.net:15976/railway"
 
 # --- Database Connection Setup ---
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
-    DATABASE_URL = "postgresql://postgres:LmGJalVzyaEimCvkJGLCvwEibHeDrhTI@maglev.proxy.rlwy.net:15976/railway"
     print("⚙️ [DB] Attempting to connect to the database...")
 
     if not DATABASE_URL:
@@ -34,6 +34,52 @@ def get_db_connection():
     except Exception as e:
         print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
+
+def fetch_openbb_news():
+    """Fetches world news from OpenBB using a provider that doesn't need extra keys."""
+    print("🔍 [OpenBB] Checking for OPENBB_API_KEY...")
+    OPENBB_API_KEY = os.getenv("OPENBB_API_KEY", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdXRoX3Rva2VuIjoiSnZwaGhEb25zN0xrbDVTbVBJY1k4MWdEM1FiZ21BZERjRk9WeUxwaCIsImV4cCI6MTc4OTMxNDgyM30.YmWlbRZoqdmjpHaF3cOuKTrcRvGRDdfRmcMJLjFDqfM")
+    if not OPENBB_API_KEY:
+        print("🟡 [OpenBB] OPENBB_API_KEY not set. Skipping fetch.")
+        return []
+    try:
+        print("🔐 [OpenBB] Authenticating with OpenBB PAT...")
+        obb.account.login(pat=OPENBB_API_KEY)
+        print("🟢 [OpenBB] Successfully authenticated with OpenBB.")
+
+        print("📡 [OpenBB] Fetching world news using 'yfinance' provider...")
+        # Explicitly use 'yfinance' which doesn't require extra API keys.
+        news_data_raw = obb.news.world(provider="yfinance", limit=10).to_dicts()
+        
+        print("🤖 [DEBUG] RAW OPENBB (yfinance) RESPONSE:")
+        print(json.dumps(news_data_raw, indent=2))
+
+        news_data = []
+        for i, article in enumerate(news_data_raw):
+            # Convert timestamp to a readable "X days/hours/minutes ago" format
+            published_at = datetime.fromtimestamp(article.get('created', 0))
+            now = datetime.now()
+            time_diff = now - published_at
+
+            if time_diff.total_seconds() < 3600:
+                published = f"{int(time_diff.total_seconds() / 60)}m ago"
+            elif time_diff.total_seconds() < 86400:
+                published = f"{int(time_diff.total_seconds() / 3600)}h ago"
+            else:
+                published = f"{int(time_diff.total_seconds() / 86400)}d ago"
+
+            news_data.append({
+                "id": str(article.get('uuid', i)),
+                "title": article["title"],
+                "url": article["link"],
+                "source": article.get("publisher", "Unknown"),
+                "published": published
+            })
+        print(f"🟢 [OpenBB] Successfully fetched {len(news_data)} articles.")
+        return news_data
+    except Exception as e:
+        print(f"🔴 [OpenBB] Error fetching news: {e}")
+        return []
 
 
 def fetch_newsapi_news():
@@ -93,9 +139,12 @@ def fetch_and_store_data(source):
     print(f"--- ⏯️ [Pipeline] Starting data fetch for: {source} ---")
     
     data = {}
-    # Use NewsAPI for all sources for reliability
-    print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
-    data = {"news": fetch_newsapi_news()}
+    if source == 'openbb':
+        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_openbb_news()")
+        data = {"news": fetch_openbb_news()}
+    elif source in ['plaid', 'clearbit']:
+        print(f"🤖 [DEBUG] Fetching data for '{source}' using fetch_newsapi_news()")
+        data = {"news": fetch_newsapi_news()}
     
     if not data or not data.get("news"):
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
