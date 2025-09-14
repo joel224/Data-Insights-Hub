@@ -11,19 +11,26 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+import os
+import psycopg2
+
 # --- Configuration ---
 IS_DEBUG = os.getenv("DEBUG", "true").lower() == "true"
-DATABASE_URL = "postgresql://postgres:LmGJalVzyaEimCvkJGLCvwEimCvkJGLCvwEibHeDrhTI@maglev.proxy.rlwy.net:15976/railway"
 
 # --- Database Connection Setup ---
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     print("⚙️  [DB] Attempting to connect to the database...")
+    
+    # Use os.getenv() to read the environment variable set by Railway
+    DATABASE_URL = os.getenv("DATABASE_URL")
 
+    # Check if the DATABASE_URL environment variable is present
     if not DATABASE_URL:
-        print("🔴 [DB] DATABASE_URL is not set. This should be hardcoded.")
+        print("🔴 [DB] DATABASE_URL environment variable is not set. Please ensure it's configured in Railway.")
         return None
     try:
+        # Use the variable to connect
         conn = psycopg2.connect(DATABASE_URL)
         print("🟢 [DB] Database connection successful.")
         return conn
@@ -33,6 +40,7 @@ def get_db_connection():
     except Exception as e:
         print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
+
 
 def calculate_metrics(eod_data):
     """Calculates SMA, RSI, and Performance Metrics from EOD data."""
@@ -133,7 +141,7 @@ def fetch_newsdata_io_news():
         print("🟡 [NewsData.io] NEWSDATA_API_KEY not set. Skipping fetch.")
         return []
 
-    try:
+    try>
         print("📡 [NewsData.io] Fetching data from newsdata.io...")
         url = f"https://newsdata.io/api/1/news?apikey={NEWSDATA_API_KEY}&category=business&language=en&size=10"
         response = requests.get(url)
@@ -243,6 +251,10 @@ def generate_and_store_insights(source):
 
         # 2. Generate insights with Gemini
         GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+        if not GEMINI_API_KEY:
+            print("🔴 [AI] GEMINI_API_KEY not found. Skipping insight generation.")
+            return
+
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-1.5-flash-latest')
         today_date = datetime.now().strftime("%Y-%m-%d")
@@ -336,3 +348,5 @@ if __name__ == "__main__":
     end_time = datetime.now()
     duration = end_time - start_time
     print(f"\n✅ Scheduled data job finished successfully in {duration.total_seconds():.2f} seconds.")
+
+    

@@ -21,24 +21,32 @@ load_dotenv()
 IS_DEBUG = True
 
 # --- Database Connection and Schema Setup ---
-
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
-    DATABASE_URL = "postgresql://postgres:LmGJalVzyaEimCvkJGLCvwEibHeDrhTI@maglev.proxy.rlwy.net:15976/railway"
+    
+    # Corrected: Read DATABASE_URL from the environment variables
+    # This value is automatically set by Railway for internal service communication.
+    DATABASE_URL = os.getenv("DATABASE_URL")
+
     if not DATABASE_URL:
-        if IS_DEBUG: print("🔴 [DB] DATABASE_URL is not set. Please check your environment variables in Railway.")
+        if IS_DEBUG:
+            print("🔴 [DB] DATABASE_URL environment variable is not set.")
         return None
     try:
+        # Use the variable to connect
         conn = psycopg2.connect(DATABASE_URL)
         if IS_DEBUG:
             print("🟢 [DB] Database connection successful.")
         return conn
     except psycopg2.OperationalError as e:
-        if IS_DEBUG: print(f"🔴 [DB] Could not connect to the database: {e}")
+        if IS_DEBUG:
+            print(f"🔴 [DB] Could not connect to the database: {e}")
         return None
     except Exception as e:
-        if IS_DEBUG: print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
+        if IS_DEBUG:
+            print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
+
 
 def create_schema(connection):
     """Creates the necessary tables if they don't exist."""
