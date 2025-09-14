@@ -309,8 +309,8 @@ def create_schema(connection):
         return
     try:
         with connection.cursor() as cur:
-            cur.execute("CREATE TABLE IF NOT EXISTS api_data (id SERIAL PRIMARY KEY, api_name VARCHAR(50) NOT NULL UNIQUE, data JSONB, timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'));")
-            cur.execute("CREATE TABLE IF NOT EXISTS daily_recommendations (id SERIAL PRIMARY KEY, data_source VARCHAR(50) NOT NULL UNIQUE, insights TEXT, timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc'));")
+            cur.execute("CREATE TABLE IF NOT EXISTS api_data (id SERIAL PRIMARY KEY, api_name VARCHAR(50) NOT NULL UNIQUE, data JSONB, timestamp TIMESTAMP WITH TIME ZONE 'utc');")
+            cur.execute("CREATE TABLE IF NOT EXISTS daily_recommendations (id SERIAL PRIMARY KEY, data_source VARCHAR(50) NOT NULL UNIQUE, insights TEXT, timestamp TIMESTAMP WITH TIME ZONE 'utc');")
         connection.commit()
         print("🟢 [DB] Schema checked/created successfully in scheduler.")
     except Exception as e:
@@ -348,6 +348,8 @@ if __name__ == "__main__":
     end_time = datetime.now()
     duration = end_time - start_time
     print(f"\n✅ Scheduled data job finished successfully in {duration.total_seconds():.2f} seconds.")
+
+    
 
     
 
