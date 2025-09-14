@@ -3,6 +3,7 @@ import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
 import Script from 'next/script';
+import { KlaviyoPageTracker } from '@/components/KlaviyoPageTracker';
 
 export const metadata: Metadata = {
   title: 'Data Insights Hub',
@@ -30,6 +31,7 @@ export default function RootLayout({
         ></Script>
       </head>
       <body className={cn('font-body antialiased')}>
+        <KlaviyoPageTracker />
         {children}
         <Toaster />
       </body>
