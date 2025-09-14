@@ -26,7 +26,7 @@ def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     DATABASE_URL = "postgresql://postgres:LmGJalVzyaEimCvkJGLCvwEibHeDrhTI@maglev.proxy.rlwy.net:15976/railway"
     if not DATABASE_URL:
-        print("🔴 [DB] DATABASE_URL is not set. Please check your environment variables in Railway.")
+        if IS_DEBUG: print("🔴 [DB] DATABASE_URL is not set. Please check your environment variables in Railway.")
         return None
     try:
         conn = psycopg2.connect(DATABASE_URL)
@@ -34,16 +34,16 @@ def get_db_connection():
             print("🟢 [DB] Database connection successful.")
         return conn
     except psycopg2.OperationalError as e:
-        print(f"🔴 [DB] Could not connect to the database: {e}")
+        if IS_DEBUG: print(f"🔴 [DB] Could not connect to the database: {e}")
         return None
     except Exception as e:
-        print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
+        if IS_DEBUG: print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
 
 def create_schema(connection):
     """Creates the necessary tables if they don't exist."""
     if not connection:
-        print("🔴 [DB] Cannot create schema, no database connection.")
+        if IS_DEBUG: print("🔴 [DB] Cannot create schema, no database connection.")
         return
     
     try:
@@ -65,9 +65,9 @@ def create_schema(connection):
                 );
             """)
         connection.commit()
-        print("🟢 [DB] Schema checked/created successfully.")
+        if IS_DEBUG: print("🟢 [DB] Schema checked/created successfully.")
     except Exception as e:
-        print(f"🔴 [DB] Error creating schema: {e}")
+        if IS_DEBUG: print(f"🔴 [DB] Error creating schema: {e}")
         connection.rollback()
 
 
@@ -76,17 +76,17 @@ def create_schema(connection):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # On startup
-    print("🚀 [FastAPI] Application starting up...")
+    if IS_DEBUG: print("🚀 [FastAPI] Application starting up...")
     db_conn = get_db_connection()
     if db_conn:
         create_schema(db_conn)
         db_conn.close()
-        print("🟢 [FastAPI] Startup complete.")
+        if IS_DEBUG: print("🟢 [FastAPI] Startup complete.")
     else:
-        print("🔴 [FastAPI] Database connection failed on startup. Schema not created.")
+        if IS_DEBUG: print("🔴 [FastAPI] Database connection failed on startup. Schema not created.")
     yield
     # On shutdown
-    print("👋 [FastAPI] Application shutting down...")
+    if IS_DEBUG: print("👋 [FastAPI] Application shutting down...")
 
 
 # --- CORS Middleware Setup ---
@@ -229,6 +229,6 @@ if not os.path.isdir(static_files_dir):
 
 if os.path.isdir(static_files_dir):
     app.mount("/", StaticFiles(directory=static_files_dir, html=True), name="static")
-    print(f"🟢 [FastAPI] Serving static files from: {static_files_dir}")
+    if IS_DEBUG: print(f"🟢 [FastAPI] Serving static files from: {static_files_dir}")
 else:
-    print(f"🟡 [FastAPI] Warning: Static files directory not found at '{static_files_dir}'. The frontend will not be served.")
+    if IS_DEBUG: print(f"🟡 [FastAPI] Warning: Static files directory not found at '{static_files_dir}'. The frontend will not be served.")
