@@ -17,9 +17,8 @@ IS_DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 # --- Database Connection Setup ---
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
-    print("⚙️  [DB] Attempting to connect to the database...")
+    if IS_DEBUG: print("⚙️  [DB] Attempting to connect to the database...")
     
-    # This value is automatically set by Railway for internal service communication.
     DATABASE_URL = os.getenv("DATABASE_URL")
 
     if not DATABASE_URL:
@@ -27,7 +26,6 @@ def get_db_connection():
             print("🔴 [DB] DATABASE_URL environment variable is not set in the service environment.")
         return None
     try:
-        # Use the variable to connect
         conn = psycopg2.connect(DATABASE_URL)
         if IS_DEBUG:
             print("🟢 [DB] Database connection successful.")
@@ -382,3 +380,4 @@ if __name__ == "__main__":
     
 
     
+
