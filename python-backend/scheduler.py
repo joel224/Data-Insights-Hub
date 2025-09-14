@@ -24,7 +24,7 @@ def get_db_connection():
 
     if not DATABASE_URL:
         if IS_DEBUG:
-            print("🔴 [DB] DATABASE_URL environment variable is not set.")
+            print("🔴 [DB] DATABASE_URL environment variable is not set in the service environment.")
         return None
     try:
         # Use the variable to connect
@@ -365,5 +365,7 @@ if __name__ == "__main__":
     end_time = datetime.now()
     duration = end_time - start_time
     print(f"\n✅ Scheduled data job finished successfully in {duration.total_seconds():.2f} seconds.")
+
+    
 
     
