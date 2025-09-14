@@ -23,9 +23,6 @@ IS_DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 # --- Database Connection and Schema Setup ---
 def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
-    
-    # Corrected: Read DATABASE_URL from the environment variables
-    # This value is automatically set by Railway for internal service communication.
     DATABASE_URL = os.getenv("DATABASE_URL")
 
     if not DATABASE_URL:
@@ -33,7 +30,6 @@ def get_db_connection():
             print("🔴 [DB] DATABASE_URL environment variable is not set.")
         return None
     try:
-        # Use the variable to connect
         conn = psycopg2.connect(DATABASE_URL)
         if IS_DEBUG:
             print("🟢 [DB] Database connection successful.")
@@ -124,25 +120,16 @@ async def get_latest_data(data_source: str):
     This endpoint fetches the most recent data and pre-generated insights
     for a given data source from the PostgreSQL database.
     """
-    if IS_DEBUG:
-        print(f"\n--- 🕵️  [API] Received request for latest '{data_source}' data ---")
-    
     if data_source not in ["plaid", "clearbit", "openbb"]:
-        if IS_DEBUG:
-            print(f"❌ [API] Invalid data source '{data_source}' requested.")
         raise HTTPException(status_code=400, detail="Invalid data source")
 
     db_conn = get_db_connection()
     if not db_conn:
-        if IS_DEBUG:
-            print(f"❌ [API] Could not establish DB connection for '{data_source}' request.")
         raise HTTPException(status_code=500, detail="Database connection not configured. Please ensure DATABASE_URL is set in Railway.")
 
     try:
         with db_conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Fetch raw data
-            if IS_DEBUG:
-                print(f"  [DB] Fetching raw data for '{data_source}' from 'api_data' table...")
             cur.execute("""
                 SELECT data, timestamp
                 FROM api_data
@@ -151,17 +138,8 @@ async def get_latest_data(data_source: str):
                 LIMIT 1;
             """, (data_source,))
             data_result = cur.fetchone()
-            if IS_DEBUG:
-                if data_result:
-                    print(f"  [DB] Raw data found for '{data_source}'. Timestamp: {data_result['timestamp']}")
-                    # print(f"  [DB] Raw data content: {json.dumps(data_result['data'], indent=2)}")
-                else:
-                    print(f"  [DB] No raw data found for '{data_source}' in 'api_data' table.")
-
 
             # Fetch insights
-            if IS_DEBUG:
-                print(f"  [DB] Fetching insights for '{data_source}' from 'daily_recommendations' table...")
             cur.execute("""
                 SELECT insights, timestamp
                 FROM daily_recommendations
@@ -170,17 +148,8 @@ async def get_latest_data(data_source: str):
                 LIMIT 1;
             """, (data_source,))
             insights_result = cur.fetchone()
-            if IS_DEBUG:
-                if insights_result:
-                    print(f"  [DB] Insights found for '{data_source}'. Timestamp: {insights_result['timestamp']}")
-                    # print(f"  [DB] Insights content: {insights_result['insights']}")
-                else:
-                     print(f"  [DB] No insights found for '{data_source}' in 'daily_recommendations' table.")
-
 
             if not data_result or not data_result.get('data'):
-                 if IS_DEBUG:
-                     print(f"  [API] Condition failed: 'not data_result or not data_result.get('data')'. Raising 404.")
                  raise HTTPException(status_code=404, detail=f"No data or insights found for {data_source}. Run the scheduler to populate data.")
 
             response_data = {
@@ -190,8 +159,6 @@ async def get_latest_data(data_source: str):
             
             # For Plaid, the frontend expects news data. We will fetch this from the 'openbb' source.
             if data_source == 'plaid':
-                if IS_DEBUG:
-                    print(f"  [API] Plaid requested. Fetching supplementary news data from 'openbb' source...")
                 cur.execute("""
                     SELECT data
                     FROM api_data
@@ -202,31 +169,18 @@ async def get_latest_data(data_source: str):
                 news_data_result = cur.fetchone()
                 if news_data_result and news_data_result.get('data'):
                     response_data['data']['news'] = news_data_result['data'].get('news', [])
-                    if IS_DEBUG:
-                        print("  [API] Successfully merged news data into Plaid response.")
-                else:
-                    if IS_DEBUG:
-                        print("  [API] No news data found for 'openbb' to supplement Plaid response.")
 
-
-            if IS_DEBUG:
-                print(f"--- ✅ [API] Sending successful response for '{data_source}' ---")
             return response_data
 
     except HTTPException as http_exc:
         # Re-raise HTTPException to let FastAPI handle it
         raise http_exc
     except Exception as e:
-        if IS_DEBUG:
-            print(f"--- ❌ [API] An unexpected error occurred: {e} ---")
-        # Ensure we are passing the correct exception detail to the frontend
         error_detail = f"An error occurred while fetching data: {e}"
         raise HTTPException(status_code=500, detail=error_detail)
     finally:
         if db_conn:
             db_conn.close()
-            if IS_DEBUG:
-                print("🔒 [DB] Database connection closed.")
 
 
 @app.get("/api")
