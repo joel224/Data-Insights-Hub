@@ -1,6 +1,7 @@
 
 'use client';
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts';
+import { format, parseISO } from 'date-fns';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -33,7 +34,11 @@ export function RsiChart({ data }: RsiChartProps) {
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              tickFormatter={value => value}
+              tickFormatter={value => {
+                if (typeof value !== 'string') return value;
+                const date = parseISO(value);
+                return format(date, 'MMM dd');
+              }}
             />
             <YAxis domain={[0, 100]} tickLine={false} axisLine={false} tickMargin={8} />
             <ChartTooltip

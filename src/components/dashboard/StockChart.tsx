@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
 import type { EodDataPoint } from '@/lib/types';
 import { CartesianGrid, XAxis, YAxis, LineChart, Line } from 'recharts';
+import { format, parseISO } from 'date-fns';
 
 interface StockChartProps {
   data: EodDataPoint[];
@@ -38,7 +39,11 @@ export function StockChart({ data, symbol }: StockChartProps) {
               tickLine={false}
               axisLine={false}
               tickMargin={8}
-              tickFormatter={value => value}
+              tickFormatter={value => {
+                if (typeof value !== 'string') return value;
+                const date = parseISO(value);
+                return format(date, 'MMM dd');
+              }}
             />
             <YAxis
               tickLine={false}
@@ -53,7 +58,11 @@ export function StockChart({ data, symbol }: StockChartProps) {
                 <ChartTooltipContent
                   indicator="line"
                   labelFormatter={(value, payload) => {
-                    return payload?.[0]?.payload.date;
+                    const datePoint = payload?.[0]?.payload;
+                    if (datePoint) {
+                        return format(parseISO(datePoint.date), 'MMM dd, yyyy');
+                    }
+                    return value;
                   }}
                 />
               }
