@@ -30,7 +30,7 @@ export default function RootLayout({
         <Script
           async
           id="klaviyo-onsite-js"
-          src="https://static.klaviyo.com/onsite/js/VMR4v3/klaviyo.js?company_id=VMR4v3"
+          src="https://static.klaviyo.com/onsite/js/klaviyo.js?company_id=VMR4v3"
         ></Script>
         <Script id="klaviyo-init-js">
           {`
