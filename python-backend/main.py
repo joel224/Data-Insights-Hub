@@ -26,22 +26,24 @@ def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     DATABASE_URL = "postgresql://postgres:LmGJalVzyaEimCvkJGLCvwEibHeDrhTI@maglev.proxy.rlwy.net:15976/railway"
     if not DATABASE_URL:
-        print("🔴 DATABASE_URL is not set. Please check your environment variables in Railway.")
+        print("🔴 [DB] DATABASE_URL is not set. Please check your environment variables in Railway.")
         return None
     try:
         conn = psycopg2.connect(DATABASE_URL)
+        if IS_DEBUG:
+            print("🟢 [DB] Database connection successful.")
         return conn
     except psycopg2.OperationalError as e:
-        print(f"🔴 Could not connect to the database: {e}")
+        print(f"🔴 [DB] Could not connect to the database: {e}")
         return None
     except Exception as e:
-        print(f"🔴 An unexpected error occurred during database connection: {e}")
+        print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
 
 def create_schema(connection):
     """Creates the necessary tables if they don't exist."""
     if not connection:
-        print("🔴 Cannot create schema, no database connection.")
+        print("🔴 [DB] Cannot create schema, no database connection.")
         return
     
     try:
@@ -63,9 +65,9 @@ def create_schema(connection):
                 );
             """)
         connection.commit()
-        print("🟢 Schema checked/created successfully.")
+        print("🟢 [DB] Schema checked/created successfully.")
     except Exception as e:
-        print(f"🔴 Error creating schema: {e}")
+        print(f"🔴 [DB] Error creating schema: {e}")
         connection.rollback()
 
 
@@ -74,16 +76,17 @@ def create_schema(connection):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # On startup
-    print("🚀 Application starting up...")
+    print("🚀 [FastAPI] Application starting up...")
     db_conn = get_db_connection()
     if db_conn:
         create_schema(db_conn)
         db_conn.close()
+        print("🟢 [FastAPI] Startup complete.")
     else:
-        print("🔴 Database connection failed on startup. Schema not created.")
+        print("🔴 [FastAPI] Database connection failed on startup. Schema not created.")
     yield
     # On shutdown
-    print("👋 Application shutting down...")
+    print("👋 [FastAPI] Application shutting down...")
 
 
 # --- CORS Middleware Setup ---
@@ -114,20 +117,24 @@ async def get_latest_data(data_source: str):
     for a given data source from the PostgreSQL database.
     """
     if IS_DEBUG:
-        print(f"\n--- 🕵️ [DEBUG] Received request for latest '{data_source}' data ---")
+        print(f"\n--- 🕵️  [API] Received request for latest '{data_source}' data ---")
     
     if data_source not in ["plaid", "clearbit", "openbb"]:
+        if IS_DEBUG:
+            print(f"❌ [API] Invalid data source '{data_source}' requested.")
         raise HTTPException(status_code=400, detail="Invalid data source")
 
     db_conn = get_db_connection()
     if not db_conn:
+        if IS_DEBUG:
+            print(f"❌ [API] Could not establish DB connection for '{data_source}' request.")
         raise HTTPException(status_code=500, detail="Database connection not configured. Please ensure DATABASE_URL is set in Railway.")
 
     try:
         with db_conn.cursor(cursor_factory=RealDictCursor) as cur:
             # Fetch raw data
             if IS_DEBUG:
-                print(f"🕵️ [DEBUG] Fetching raw data for '{data_source}' from 'api_data' table...")
+                print(f"  [DB] Fetching raw data for '{data_source}' from 'api_data' table...")
             cur.execute("""
                 SELECT data, timestamp
                 FROM api_data
@@ -138,15 +145,14 @@ async def get_latest_data(data_source: str):
             data_result = cur.fetchone()
             if IS_DEBUG:
                 if data_result:
-                    print(f"🕵️ [DEBUG] Raw data found for '{data_source}'. Timestamp: {data_result['timestamp']}")
-                    # print(f"🕵️ [DEBUG] Raw data content (first 100 chars): {str(data_result['data'])[:100]}...")
+                    print(f"  [DB] Raw data found for '{data_source}'. Timestamp: {data_result['timestamp']}")
                 else:
-                    print(f"🕵️ [DEBUG] No raw data found for '{data_source}' in 'api_data' table.")
+                    print(f"  [DB] No raw data found for '{data_source}' in 'api_data' table.")
 
 
             # Fetch insights
             if IS_DEBUG:
-                print(f"🕵️ [DEBUG] Fetching insights for '{data_source}' from 'daily_recommendations' table...")
+                print(f"  [DB] Fetching insights for '{data_source}' from 'daily_recommendations' table...")
             cur.execute("""
                 SELECT insights, timestamp
                 FROM daily_recommendations
@@ -157,14 +163,14 @@ async def get_latest_data(data_source: str):
             insights_result = cur.fetchone()
             if IS_DEBUG:
                 if insights_result:
-                    print(f"🕵️ [DEBUG] Insights found for '{data_source}'. Timestamp: {insights_result['timestamp']}")
+                    print(f"  [DB] Insights found for '{data_source}'. Timestamp: {insights_result['timestamp']}")
                 else:
-                     print(f"🕵️ [DEBUG] No insights found for '{data_source}' in 'daily_recommendations' table.")
+                     print(f"  [DB] No insights found for '{data_source}' in 'daily_recommendations' table.")
 
 
             if not data_result or not data_result.get('data'):
                  if IS_DEBUG:
-                     print(f"🕵️ [DEBUG] Condition failed: 'not data_result or not data_result.get('data')'. Raising 404.")
+                     print(f"  [API] Condition failed: 'not data_result or not data_result.get('data')'. Raising 404.")
                  raise HTTPException(status_code=404, detail=f"No data or insights found for {data_source}. Run the scheduler to populate data.")
 
             response_data = {
@@ -172,11 +178,10 @@ async def get_latest_data(data_source: str):
                 "insights": insights_result['insights'] if insights_result else "No insights were generated for this data source. Please check the scheduler logs."
             }
             
-            # For Plaid, the frontend expects news data. We will fetch this from the 'openbb' source,
-            # which we know contains news from NewsAPI.org
+            # For Plaid, the frontend expects news data. We will fetch this from the 'openbb' source.
             if data_source == 'plaid':
                 if IS_DEBUG:
-                    print(f"🕵️ [DEBUG] Plaid requested. Fetching supplementary news data from 'openbb' source...")
+                    print(f"  [API] Plaid requested. Fetching supplementary news data from 'openbb' source...")
                 cur.execute("""
                     SELECT data
                     FROM api_data
@@ -188,24 +193,26 @@ async def get_latest_data(data_source: str):
                 if news_data_result and news_data_result.get('data'):
                     response_data['data']['news'] = news_data_result['data'].get('news', [])
                     if IS_DEBUG:
-                        print("🕵️ [DEBUG] Successfully merged news data into Plaid response.")
+                        print("  [API] Successfully merged news data into Plaid response.")
                 else:
                     if IS_DEBUG:
-                        print("🕵️ [DEBUG] No news data found for 'openbb' to supplement Plaid response.")
+                        print("  [API] No news data found for 'openbb' to supplement Plaid response.")
 
 
             if IS_DEBUG:
-                print(f"--- ✅ [DEBUG] Sending successful response for '{data_source}' ---")
+                print(f"--- ✅ [API] Sending successful response for '{data_source}' ---")
             return response_data
 
     except Exception as e:
         if IS_DEBUG:
-            print(f"--- ❌ [DEBUG] An unexpected error occurred: {e} ---")
-        print(f"🔴 Error fetching data from database: {e}")
+            print(f"--- ❌ [API] An unexpected error occurred: {e} ---")
+        print(f"🔴 [DB] Error fetching data from database: {e}")
         raise HTTPException(status_code=500, detail=f"An error occurred while fetching data: {str(e)}")
     finally:
         if db_conn:
             db_conn.close()
+            if IS_DEBUG:
+                print("🔒 [DB] Database connection closed.")
 
 
 @app.get("/api")
@@ -215,29 +222,13 @@ def read_root():
 # --- Static Files Mounting ---
 
 # Determine the correct path to the 'out' directory.
-# When running locally from `python-backend`, it's one level up.
-# In the Docker container, it's in the same directory.
 current_dir = os.path.dirname(os.path.abspath(__file__))
 static_files_dir = os.path.join(current_dir, "out")
-
-# If 'out' is not in the current directory, check the parent directory.
 if not os.path.isdir(static_files_dir):
     static_files_dir = os.path.join(os.path.dirname(current_dir), "out")
 
-# Check if the directory exists before mounting.
 if os.path.isdir(static_files_dir):
     app.mount("/", StaticFiles(directory=static_files_dir, html=True), name="static")
-    print(f"🟢 Serving static files from: {static_files_dir}")
+    print(f"🟢 [FastAPI] Serving static files from: {static_files_dir}")
 else:
-    print(f"🟡 Warning: Static files directory not found at '{static_files_dir}'. The frontend will not be served.")
-
-
-    
-
-
-
-
-
-  
-
-    
+    print(f"🟡 [FastAPI] Warning: Static files directory not found at '{static_files_dir}'. The frontend will not be served.")
