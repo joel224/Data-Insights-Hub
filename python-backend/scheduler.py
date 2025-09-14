@@ -11,9 +11,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import os
-import psycopg2
-
 # --- Configuration ---
 IS_DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 
@@ -22,20 +19,26 @@ def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     print("⚙️  [DB] Attempting to connect to the database...")
     
+    # This value is automatically set by Railway for internal service communication.
     DATABASE_URL = os.getenv("DATABASE_URL")
 
     if not DATABASE_URL:
-        print("🔴 [DB] DATABASE_URL environment variable is not set. Please ensure it's configured in Railway.")
+        if IS_DEBUG:
+            print("🔴 [DB] DATABASE_URL environment variable is not set.")
         return None
     try:
+        # Use the variable to connect
         conn = psycopg2.connect(DATABASE_URL)
-        print("🟢 [DB] Database connection successful.")
+        if IS_DEBUG:
+            print("🟢 [DB] Database connection successful.")
         return conn
     except psycopg2.OperationalError as e:
-        print(f"🔴 [DB] Could not connect to the database: {e}")
+        if IS_DEBUG:
+            print(f"🔴 [DB] Could not connect to the database: {e}")
         return None
     except Exception as e:
-        print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
+        if IS_DEBUG:
+            print(f"🔴 [DB] An unexpected error occurred during database connection: {e}")
         return None
 
 
@@ -185,13 +188,16 @@ def fetch_and_store_data(source):
 
     data = {}
     if source == 'plaid':
-        if IS_DEBUG: print("  [Pipeline] Fetching data for 'plaid' using fetch_marketstack_eod()")
+        if IS_DEBUG: print("  [Pipeline] Fetching financial data for 'plaid' using fetch_marketstack_eod()")
         data = fetch_marketstack_eod()
-    elif source in ['clearbit', 'openbb']:
-        if IS_DEBUG: print(f"  [Pipeline] Fetching data for '{source}' using fetch_newsdata_io_news()")
+    elif source == 'clearbit':
+        if IS_DEBUG: print("  [Pipeline] Fetching news data for 'clearbit' using fetch_newsdata_io_news()")
+        data = {"news": fetch_newsdata_io_news()}
+    elif source == 'openbb':
+        if IS_DEBUG: print("  [Pipeline] Fetching news data for 'openbb' using fetch_newsdata_io_news()")
         data = {"news": fetch_newsdata_io_news()}
 
-    if not data or (isinstance(data, dict) and not data.get('eod') and not data.get('news')):
+    if not data or (isinstance(data, dict) and not any(data.values())):
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
         return
 
@@ -306,8 +312,22 @@ def create_schema(connection):
         return
     try:
         with connection.cursor() as cur:
-            cur.execute("CREATE TABLE IF NOT EXISTS api_data (id SERIAL PRIMARY KEY, api_name VARCHAR(50) NOT NULL UNIQUE, data JSONB, timestamp TIMESTAMP WITH TIME ZONE 'utc');")
-            cur.execute("CREATE TABLE IF NOT EXISTS daily_recommendations (id SERIAL PRIMARY KEY, data_source VARCHAR(50) NOT NULL UNIQUE, insights TEXT, timestamp TIMESTAMP WITH TIME ZONE 'utc');")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS api_data (
+                    id SERIAL PRIMARY KEY,
+                    api_name VARCHAR(50) NOT NULL UNIQUE,
+                    data JSONB,
+                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc')
+                );
+            """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS daily_recommendations (
+                    id SERIAL PRIMARY KEY,
+                    data_source VARCHAR(50) NOT NULL UNIQUE,
+                    insights TEXT,
+                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc')
+                );
+            """)
         connection.commit()
         print("🟢 [DB] Schema checked/created successfully in scheduler.")
     except Exception as e:

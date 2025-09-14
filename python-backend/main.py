@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # --- Configuration ---
-IS_DEBUG = True
+IS_DEBUG = os.getenv("DEBUG", "true").lower() == "true"
 
 # --- Database Connection and Schema Setup ---
 def get_db_connection():
@@ -61,7 +61,7 @@ def create_schema(connection):
                     id SERIAL PRIMARY KEY,
                     api_name VARCHAR(50) NOT NULL UNIQUE,
                     data JSONB,
-                    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc')
                 );
             """)
             cur.execute("""
@@ -69,7 +69,7 @@ def create_schema(connection):
                     id SERIAL PRIMARY KEY,
                     data_source VARCHAR(50) NOT NULL UNIQUE,
                     insights TEXT,
-                    timestamp TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT (NOW() AT TIME ZONE 'utc')
+                    timestamp TIMESTAMP WITH TIME ZONE DEFAULT (NOW() AT TIME ZONE 'utc')
                 );
             """)
         connection.commit()
@@ -211,11 +211,15 @@ async def get_latest_data(data_source: str):
                 print(f"--- ✅ [API] Sending successful response for '{data_source}' ---")
             return response_data
 
+    except HTTPException as http_exc:
+        # Re-raise HTTPException to let FastAPI handle it
+        raise http_exc
     except Exception as e:
         if IS_DEBUG:
             print(f"--- ❌ [API] An unexpected error occurred: {e} ---")
-        print(f"🔴 [DB] Error fetching data from database: {e}")
-        raise HTTPException(status_code=500, detail=f"An error occurred while fetching data: {str(e)}")
+        # Ensure we are passing the correct exception detail to the frontend
+        error_detail = f"An error occurred while fetching data: {e}"
+        raise HTTPException(status_code=500, detail=error_detail)
     finally:
         if db_conn:
             db_conn.close()
@@ -230,13 +234,18 @@ def read_root():
 # --- Static Files Mounting ---
 
 # Determine the correct path to the 'out' directory.
+# This logic handles running from the root vs. from the python-backend directory.
 current_dir = os.path.dirname(os.path.abspath(__file__))
-static_files_dir = os.path.join(current_dir, "out")
+static_files_dir = os.path.join(current_dir, "..", "out") # Go up one level from python-backend to the root
+
 if not os.path.isdir(static_files_dir):
-    static_files_dir = os.path.join(os.path.dirname(current_dir), "out")
+    # Fallback for if the script is run from the project root
+    static_files_dir = os.path.join(current_dir, "out")
 
 if os.path.isdir(static_files_dir):
     app.mount("/", StaticFiles(directory=static_files_dir, html=True), name="static")
     if IS_DEBUG: print(f"🟢 [FastAPI] Serving static files from: {static_files_dir}")
 else:
-    if IS_DEBUG: print(f"🟡 [FastAPI] Warning: Static files directory not found at '{static_files_dir}'. The frontend will not be served.")
+    if IS_DEBUG: print(f"🟡 [FastAPI] Warning: Static files directory not found. The frontend will not be served.")
+
+    
