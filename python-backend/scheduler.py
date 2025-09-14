@@ -22,15 +22,12 @@ def get_db_connection():
     """Establishes a connection to the PostgreSQL database."""
     print("⚙️  [DB] Attempting to connect to the database...")
     
-    # Use os.getenv() to read the environment variable set by Railway
     DATABASE_URL = os.getenv("DATABASE_URL")
 
-    # Check if the DATABASE_URL environment variable is present
     if not DATABASE_URL:
         print("🔴 [DB] DATABASE_URL environment variable is not set. Please ensure it's configured in Railway.")
         return None
     try:
-        # Use the variable to connect
         conn = psycopg2.connect(DATABASE_URL)
         print("🟢 [DB] Database connection successful.")
         return conn
@@ -348,9 +345,5 @@ if __name__ == "__main__":
     end_time = datetime.now()
     duration = end_time - start_time
     print(f"\n✅ Scheduled data job finished successfully in {duration.total_seconds():.2f} seconds.")
-
-    
-
-    
 
     
