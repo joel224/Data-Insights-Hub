@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useTransition } from 'react';
+import { useState, useTransition, useEffect } from 'react';
 import { Building2, Landmark, LineChart, Loader2 } from 'lucide-react';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -46,11 +46,16 @@ export function Dashboard() {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
 
-  const [activeDataSource, setActiveDataSource] = useState<DataSource | null>(null);
+  const [activeDataSource, setActiveDataSource] = useState<DataSource | null>('plaid');
 
   const [plaidState, setPlaidState] = useState<PipelineState<PlaidData>>({ data: null, insights: null });
   const [clearbitState, setClearbitState] = useState<PipelineState<ClearbitData>>({ data: null, insights: null });
   const [openbbState, setOpenbbState] = useState<PipelineState<OpenBBData>>({ data: null, insights: null });
+  
+  useEffect(() => {
+    handleGenerate('plaid');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleGenerate = (dataSource: DataSource) => {
     setActiveDataSource(dataSource);
@@ -94,6 +99,21 @@ export function Dashboard() {
               return openbbState.data ? 'Refresh Insights' : 'Load Insights';
       }
   }
+  
+  const handleTabChange = (value: string) => {
+    const dataSource = value as DataSource;
+    switch (dataSource) {
+      case 'plaid':
+        if (!plaidState.data) handleGenerate('plaid');
+        break;
+      case 'clearbit':
+        if (!clearbitState.data) handleGenerate('clearbit');
+        break;
+      case 'openbb':
+        if (!openbbState.data) handleGenerate('openbb');
+        break;
+    }
+  }
 
   const renderInitialState = (dataSource: DataSource, title: string) => (
     <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm">
@@ -113,11 +133,11 @@ export function Dashboard() {
   )
 
   return (
-    <Tabs defaultValue="plaid" className="space-y-4">
+    <Tabs defaultValue="plaid" className="space-y-4" onValueChange={handleTabChange}>
       <TabsList>
-        <TabsTrigger value="plaid" onClick={() => !plaidState.data && handleGenerate('plaid')}><Landmark className="mr-2 h-4 w-4" />Plaid</TabsTrigger>
-        <TabsTrigger value="clearbit" onClick={() => !clearbitState.data && handleGenerate('clearbit')}><Building2 className="mr-2 h-4 w-4" />Clearbit</TabsTrigger>
-        <TabsTrigger value="openbb" onClick={() => !openbbState.data && handleGenerate('openbb')}><LineChart className="mr-2 h-4 w-4" />OpenBB</TabsTrigger>
+        <TabsTrigger value="plaid"><Landmark className="mr-2 h-4 w-4" />Plaid</TabsTrigger>
+        <TabsTrigger value="clearbit"><Building2 className="mr-2 h-4 w-4" />Clearbit</TabsTrigger>
+        <TabsTrigger value="openbb"><LineChart className="mr-2 h-4 w-4" />OpenBB</TabsTrigger>
       </TabsList>
       
       <TabsContent value="plaid" className="space-y-4">

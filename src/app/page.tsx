@@ -1,5 +1,28 @@
-import { Dashboard } from '@/components/dashboard/Dashboard';
+
+'use client';
+
 import { Logo } from '@/components/icons/Logo';
+import { Skeleton } from '@/components/ui/skeleton';
+import dynamic from 'next/dynamic';
+
+const Dashboard = dynamic(() => import('@/components/dashboard/Dashboard').then(mod => mod.Dashboard), {
+  ssr: false,
+  loading: () => (
+    <div className="space-y-4">
+      <Skeleton className="h-10 w-[300px]" />
+      <div className="flex flex-1 items-center justify-center rounded-lg border border-dashed shadow-sm p-8">
+        <div className="flex flex-col items-center gap-2 text-center">
+            <h3 className="text-2xl font-bold tracking-tight">
+                Loading Dashboard...
+            </h3>
+            <p className="text-sm text-muted-foreground">
+                Please wait while the data is being prepared.
+            </p>
+        </div>
+      </div>
+    </div>
+  ),
+});
 
 export default function Home() {
   return (
