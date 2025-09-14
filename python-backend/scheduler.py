@@ -141,7 +141,7 @@ def fetch_newsdata_io_news():
         print("🟡 [NewsData.io] NEWSDATA_API_KEY not set. Skipping fetch.")
         return []
 
-    try>
+    try:
         print("📡 [NewsData.io] Fetching data from newsdata.io...")
         url = f"https://newsdata.io/api/1/news?apikey={NEWSDATA_API_KEY}&category=business&language=en&size=10"
         response = requests.get(url)
@@ -348,5 +348,7 @@ if __name__ == "__main__":
     end_time = datetime.now()
     duration = end_time - start_time
     print(f"\n✅ Scheduled data job finished successfully in {duration.total_seconds():.2f} seconds.")
+
+    
 
     
