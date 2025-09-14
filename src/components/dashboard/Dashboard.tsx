@@ -15,7 +15,7 @@ import { OpenbbDataView } from './OpenbbDataView';
 import { InsightsCard } from './InsightsCard';
 import { InsightsSkeleton, OpenbbDataSkeleton } from './LoadingStates';
 
-// Define the Klaviyo LearnQ object on the window
+// Define the Klaviyo _learnq object on the window for TypeScript
 declare global {
   interface Window {
     _learnq: any[];
@@ -67,19 +67,21 @@ export function Dashboard() {
 
   // Klaviyo page tracking
   useEffect(() => {
-    if (typeof window._learnq !== 'undefined' && activeTab) {
-      let pageName = '';
-      switch (activeTab) {
-        case 'plaid':
-          pageName = 'Plaid';
-          break;
-        case 'clearbit':
-          pageName = 'Clearbit';
-          break;
-        case 'openbb':
-          pageName = 'OpenBB';
-          break;
-      }
+    // Ensure _learnq is an array before pushing
+    window._learnq = window._learnq || [];
+    let pageName = '';
+    switch (activeTab) {
+      case 'plaid':
+        pageName = 'Plaid';
+        break;
+      case 'clearbit':
+        pageName = 'Clearbit';
+        break;
+      case 'openbb':
+        pageName = 'OpenBB';
+        break;
+    }
+    if (pageName) {
       window._learnq.push(['track', 'Visited Page', { 'Page Name': pageName }]);
     }
   }, [activeTab]);
