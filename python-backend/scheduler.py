@@ -175,12 +175,9 @@ def fetch_and_store_data(source):
     print(f"\n--- ▶️  [Pipeline] Starting data fetch for: {source} ---")
 
     data = {}
-    # Corrected logic: Fetch the right data for each source
     if source == 'plaid':
-        print(f"  [Pipeline] Source is '{source}', calling fetch_marketstack_eod()...")
         data = fetch_marketstack_eod()
     elif source == 'clearbit' or source == 'openbb':
-        print(f"  [Pipeline] Source is '{source}', calling fetch_newsdata_io_news()...")
         data = {"news": fetch_newsdata_io_news()}
 
     if not data or (isinstance(data, dict) and not any(v for k, v in data.items() if k != 'performance' and v)):
@@ -372,5 +369,3 @@ if __name__ == "__main__":
     end_time = datetime.now()
     duration = end_time - start_time
     print(f"\n✅ Scheduled data job finished successfully in {duration.total_seconds():.2f} seconds.")
-
-    

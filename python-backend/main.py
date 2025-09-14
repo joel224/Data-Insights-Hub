@@ -203,5 +203,3 @@ if os.path.isdir(static_files_dir):
     if IS_DEBUG: print(f"🟢 [FastAPI] Serving static files from: {static_files_dir}")
 else:
     if IS_DEBUG: print(f"🟡 [FastAPI] Warning: Static files directory not found. The frontend will not be served.")
-
-    
