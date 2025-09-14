@@ -15,6 +15,13 @@ import { OpenbbDataView } from './OpenbbDataView';
 import { InsightsCard } from './InsightsCard';
 import { InsightsSkeleton, OpenbbDataSkeleton } from './LoadingStates';
 
+// Define the Klaviyo LearnQ object on the window
+declare global {
+  interface Window {
+    _learnq: any[];
+  }
+}
+
 async function fetchPipelineData(dataSource: DataSource): Promise<{ data: any; insights?: string; error?: string }> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_API_URL || '';
@@ -45,8 +52,9 @@ async function fetchPipelineData(dataSource: DataSource): Promise<{ data: any; i
 export function Dashboard() {
   const [isPending, startTransition] = useTransition();
   const { toast } = useToast();
-
-  const [activeDataSource, setActiveDataSource] = useState<DataSource | null>('plaid');
+  
+  const [activeTab, setActiveTab] = useState<DataSource>('plaid');
+  const [loadingDataSource, setLoadingDataSource] = useState<DataSource | null>('plaid');
 
   const [plaidState, setPlaidState] = useState<PipelineState<PlaidData>>({ data: null, insights: null });
   const [clearbitState, setClearbitState] = useState<PipelineState<ClearbitData>>({ data: null, insights: null });
@@ -57,8 +65,28 @@ export function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Klaviyo page tracking
+  useEffect(() => {
+    if (typeof window._learnq !== 'undefined' && activeTab) {
+      let pageName = '';
+      switch (activeTab) {
+        case 'plaid':
+          pageName = 'Plaid';
+          break;
+        case 'clearbit':
+          pageName = 'Clearbit';
+          break;
+        case 'openbb':
+          pageName = 'OpenBB';
+          break;
+      }
+      window._learnq.push(['track', 'Visited Page', { 'Page Name': pageName }]);
+    }
+  }, [activeTab]);
+
+
   const handleGenerate = (dataSource: DataSource) => {
-    setActiveDataSource(dataSource);
+    setLoadingDataSource(dataSource);
     startTransition(async () => {
       const result = await fetchPipelineData(dataSource);
 
@@ -68,7 +96,7 @@ export function Dashboard() {
           title: 'An error occurred',
           description: result.error,
         });
-        setActiveDataSource(null);
+        setLoadingDataSource(null);
         return;
       }
       
@@ -83,11 +111,11 @@ export function Dashboard() {
           setOpenbbState({ data: result.data, insights: result.insights ?? null });
           break;
       }
-      setActiveDataSource(null);
+      setLoadingDataSource(null);
     });
   };
 
-  const isLoading = (dataSource: DataSource) => isPending && activeDataSource === dataSource;
+  const isLoading = (dataSource: DataSource) => isPending && loadingDataSource === dataSource;
 
   const getButtonText = (dataSource: DataSource) => {
       switch (dataSource) {
@@ -102,6 +130,7 @@ export function Dashboard() {
   
   const handleTabChange = (value: string) => {
     const dataSource = value as DataSource;
+    setActiveTab(dataSource);
     switch (dataSource) {
       case 'plaid':
         if (!plaidState.data) handleGenerate('plaid');
