@@ -154,6 +154,7 @@ async def get_latest_data(data_source: str):
             if IS_DEBUG:
                 if data_result:
                     print(f"  [DB] Raw data found for '{data_source}'. Timestamp: {data_result['timestamp']}")
+                    # print(f"  [DB] Raw data content: {json.dumps(data_result['data'], indent=2)}")
                 else:
                     print(f"  [DB] No raw data found for '{data_source}' in 'api_data' table.")
 
@@ -172,6 +173,7 @@ async def get_latest_data(data_source: str):
             if IS_DEBUG:
                 if insights_result:
                     print(f"  [DB] Insights found for '{data_source}'. Timestamp: {insights_result['timestamp']}")
+                    # print(f"  [DB] Insights content: {insights_result['insights']}")
                 else:
                      print(f"  [DB] No insights found for '{data_source}' in 'daily_recommendations' table.")
 

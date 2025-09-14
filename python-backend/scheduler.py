@@ -109,6 +109,7 @@ def calculate_metrics(eod_data):
 
 def fetch_marketstack_eod():
     """Fetches end-of-day stock data from MarketStack API."""
+    if IS_DEBUG: print("  [MarketStack] DEBUG: Inside fetch_marketstack_eod function.")
     MARKETSTACK_API_KEY = os.getenv("MARKETSTACK_API_KEY")
     if not MARKETSTACK_API_KEY:
         print("🟡 [MarketStack] MARKETSTACK_API_KEY not set. Using mocked data.")
@@ -120,6 +121,7 @@ def fetch_marketstack_eod():
         response = requests.get(url)
         response.raise_for_status()
         eod_json = response.json()
+        if IS_DEBUG: print(f"  [MarketStack] DEBUG: Raw response from API: {eod_json}")
         
         eod_raw = sorted(eod_json.get("data", []), key=lambda x: datetime.strptime(x['date'], '%Y-%m-%dT%H:%M:%S%z'))
         eod_data = [{"date": item['date'][:10], "price": round(item['close'], 2)} for item in eod_raw]
@@ -127,7 +129,9 @@ def fetch_marketstack_eod():
         eod_data_with_metrics, performance = calculate_metrics(eod_data)
         
         print(f"🟢 [MarketStack] Successfully fetched and processed {len(eod_data_with_metrics)} EOD data points for AAPL.")
-        return {"eod": eod_data_with_metrics, "symbol": "AAPL", "performance": performance}
+        result = {"eod": eod_data_with_metrics, "symbol": "AAPL", "performance": performance}
+        if IS_DEBUG: print(f"  [MarketStack] DEBUG: Returning data: {result}")
+        return result
 
     except requests.exceptions.RequestException as e:
         print(f"🔴 [MarketStack] Error fetching live EOD data: {e}")
@@ -136,6 +140,7 @@ def fetch_marketstack_eod():
 
 def fetch_newsdata_io_news():
     """Fetches live general business news from NewsData.io."""
+    if IS_DEBUG: print("  [NewsData.io] DEBUG: Inside fetch_newsdata_io_news function.")
     NEWSDATA_API_KEY = os.getenv("NEWSDATA_API_KEY")
     if not NEWSDATA_API_KEY:
         print("🟡 [NewsData.io] NEWSDATA_API_KEY not set. Skipping fetch.")
@@ -149,7 +154,7 @@ def fetch_newsdata_io_news():
         articles_json = response.json()
 
         if IS_DEBUG:
-            print("  [NewsData.io] Raw Response:")
+            print("  [NewsData.io] DEBUG: Raw Response from API:")
             print(json.dumps(articles_json, indent=2))
 
         articles = articles_json.get("results", [])
@@ -176,6 +181,7 @@ def fetch_newsdata_io_news():
                 "published": published
             })
         print(f"🟢 [NewsData.io] Successfully fetched and formatted {len(news_data)} articles.")
+        if IS_DEBUG: print(f"  [NewsData.io] DEBUG: Returning formatted news data: {news_data}")
         return news_data
     except requests.exceptions.RequestException as e:
         print(f"🔴 [NewsData.io] Error fetching live news: {e}")
@@ -188,14 +194,18 @@ def fetch_and_store_data(source):
 
     data = {}
     if source == 'plaid':
-        if IS_DEBUG: print("  [Pipeline] Fetching financial data for 'plaid' using fetch_marketstack_eod()")
+        if IS_DEBUG: print("  [Pipeline] DEBUG: Source is 'plaid'. Calling fetch_marketstack_eod().")
         data = fetch_marketstack_eod()
     elif source == 'clearbit':
-        if IS_DEBUG: print("  [Pipeline] Fetching news data for 'clearbit' using fetch_newsdata_io_news()")
+        if IS_DEBUG: print("  [Pipeline] DEBUG: Source is 'clearbit'. Calling fetch_newsdata_io_news().")
         data = {"news": fetch_newsdata_io_news()}
     elif source == 'openbb':
-        if IS_DEBUG: print("  [Pipeline] Fetching news data for 'openbb' using fetch_newsdata_io_news()")
+        if IS_DEBUG: print("  [Pipeline] DEBUG: Source is 'openbb'. Calling fetch_newsdata_io_news().")
         data = {"news": fetch_newsdata_io_news()}
+    else:
+        if IS_DEBUG: print(f"  [Pipeline] DEBUG: Source '{source}' not recognized in fetch_and_store_data.")
+
+    if IS_DEBUG: print(f"  [Pipeline] DEBUG: Data fetched for '{source}': {json.dumps(data, indent=2)}")
 
     if not data or (isinstance(data, dict) and not any(data.values())):
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
@@ -209,6 +219,7 @@ def fetch_and_store_data(source):
     try:
         with db_conn.cursor() as cur:
             print(f"  [DB] Storing data for '{source}'...")
+            if IS_DEBUG: print(f"  [DB] DEBUG: JSON data to be stored: {json.dumps(data)}")
             query = """
                 INSERT INTO api_data (api_name, data, timestamp)
                 VALUES (%s, %s, NOW() AT TIME ZONE 'utc')
@@ -247,6 +258,7 @@ def generate_and_store_insights(source):
             if result:
                 raw_data = result[0]
                 print(f"🟢 [DB] Found raw data for '{source}'.")
+                if IS_DEBUG: print(f"  [DB] DEBUG: Raw data for insights: {json.dumps(raw_data, indent=2)}")
 
         if not raw_data:
             print(f"🟡 [AI] No raw data found for {source}. Skipping insight generation.")
@@ -272,14 +284,14 @@ def generate_and_store_insights(source):
 
         prompt = f"""You are a {analyst_type}. Based on the following {data_description} for {today_date}, provide a short summary and 3 actionable recommendations to improve performance related to {focus}. Keep it concise. Data:\n\n{json.dumps(raw_data, indent=2)}"""
         if IS_DEBUG:
-            print(f"  [AI] Prompt for {source}:\n{prompt[:300]}...")
+            print(f"  [AI] DEBUG: Prompt for {source}:\n{prompt[:300]}...")
 
         print(f"🧠 [AI] Generating insights for {source}... (This may take a moment)")
         response = model.generate_content(prompt)
         insights = response.text
         print(f"💡 [AI] Insights successfully generated for {source}.")
         if IS_DEBUG:
-            print(f"  [AI] Generated Insights:\n{insights}")
+            print(f"  [AI] DEBUG: Generated Insights:\n{insights}")
 
         # 3. Store the generated insights
         with db_conn.cursor() as cur:
@@ -358,6 +370,7 @@ if __name__ == "__main__":
         sys.exit(1)
 
     data_sources_to_run = ["plaid", "clearbit", "openbb"]
+    print(f"DEBUG: Will run scheduler for sources: {data_sources_to_run}")
     for source in data_sources_to_run:
         fetch_and_store_data(source)
         generate_and_store_insights(source)
