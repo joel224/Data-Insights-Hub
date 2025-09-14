@@ -65,28 +65,6 @@ export function Dashboard() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Klaviyo page tracking
-  useEffect(() => {
-    // Ensure _learnq is an array before pushing
-    window._learnq = window._learnq || [];
-    let pageName = '';
-    switch (activeTab) {
-      case 'plaid':
-        pageName = 'Plaid';
-        break;
-      case 'clearbit':
-        pageName = 'Clearbit';
-        break;
-      case 'openbb':
-        pageName = 'OpenBB';
-        break;
-    }
-    if (pageName) {
-      window._learnq.push(['track', 'Visited Page', { 'Page Name': pageName }]);
-    }
-  }, [activeTab]);
-
-
   const handleGenerate = (dataSource: DataSource) => {
     setLoadingDataSource(dataSource);
     startTransition(async () => {
@@ -133,16 +111,26 @@ export function Dashboard() {
   const handleTabChange = (value: string) => {
     const dataSource = value as DataSource;
     setActiveTab(dataSource);
+
+    // Klaviyo page tracking
+    window._learnq = window._learnq || [];
+    let pageName = '';
     switch (dataSource) {
       case 'plaid':
+        pageName = 'Plaid';
         if (!plaidState.data) handleGenerate('plaid');
         break;
       case 'clearbit':
+        pageName = 'Clearbit';
         if (!clearbitState.data) handleGenerate('clearbit');
         break;
       case 'openbb':
+        pageName = 'OpenBB';
         if (!openbbState.data) handleGenerate('openbb');
         break;
+    }
+    if (pageName) {
+      window._learnq.push(['track', 'Visited Page', { 'Page Name': pageName }]);
     }
   }
 
