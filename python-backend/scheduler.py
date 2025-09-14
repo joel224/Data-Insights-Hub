@@ -4,6 +4,7 @@ import json
 from datetime import datetime, timedelta
 import random
 import psycopg2
+from psycopg2.extras import RealDictCursor
 import sys
 import requests
 import google.generativeai as genai
@@ -174,14 +175,15 @@ def fetch_and_store_data(source):
     print(f"\n--- ▶️  [Pipeline] Starting data fetch for: {source} ---")
 
     data = {}
+    # Corrected logic: Fetch the right data for each source
     if source == 'plaid':
+        print(f"  [Pipeline] Source is '{source}', calling fetch_marketstack_eod()...")
         data = fetch_marketstack_eod()
-    elif source == 'clearbit':
-        data = {"news": fetch_newsdata_io_news()}
-    elif source == 'openbb':
+    elif source == 'clearbit' or source == 'openbb':
+        print(f"  [Pipeline] Source is '{source}', calling fetch_newsdata_io_news()...")
         data = {"news": fetch_newsdata_io_news()}
 
-    if not data or (isinstance(data, dict) and not any(data.values())):
+    if not data or (isinstance(data, dict) and not any(v for k, v in data.items() if k != 'performance' and v)):
         print(f"🟡 [Pipeline] No data fetched for {source}. Skipping database storage.")
         return
 
@@ -313,6 +315,25 @@ def create_schema(connection):
         connection.rollback()
 
 
+def log_db_state(connection, message):
+    """Logs the current state of the api_data table."""
+    if not connection or not IS_DEBUG:
+        return
+    try:
+        with connection.cursor(cursor_factory=RealDictCursor) as cur:
+            print(f"--- 📊 [DB State] {message} ---")
+            cur.execute("SELECT id, api_name, timestamp FROM api_data ORDER BY timestamp DESC;")
+            records = cur.fetchall()
+            if not records:
+                print("  [DB State] Table 'api_data' is empty.")
+            else:
+                for record in records:
+                    print(f"  [DB State] -> id: {record['id']}, api_name: {record['api_name']}, timestamp: {record['timestamp']}")
+            print("--- 📊 [DB State] End of log ---")
+    except Exception as e:
+        print(f"🔴 [DB State] Error logging table state: {e}")
+
+
 if __name__ == "__main__":
     print("\n🚀 Starting scheduled data job...")
     start_time = datetime.now()
@@ -330,6 +351,7 @@ if __name__ == "__main__":
     db_conn = get_db_connection()
     if db_conn:
         create_schema(db_conn)
+        log_db_state(db_conn, "Before job run") # Log state before
         db_conn.close()
     else:
         print("🔴 [FATAL] Database connection failed. Cannot verify schema or run jobs.")
@@ -341,6 +363,12 @@ if __name__ == "__main__":
         fetch_and_store_data(source)
         generate_and_store_insights(source)
     
+    # Log state after the job is done
+    db_conn_after = get_db_connection()
+    if db_conn_after:
+        log_db_state(db_conn_after, "After job run")
+        db_conn_after.close()
+
     end_time = datetime.now()
     duration = end_time - start_time
     print(f"\n✅ Scheduled data job finished successfully in {duration.total_seconds():.2f} seconds.")
